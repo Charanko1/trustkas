@@ -5,40 +5,50 @@ import User from "@/models/User";
 import { generateToken } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
-  await connectDB();
+  try {
+    await connectDB();
 
-  const { email, password } = await req.json();
+    const { email, password } = await req.json();
 
-  const user = await User.findOne({ email });
+    const user = await User.findOne({ email });
 
-  if (!user) {
-    return NextResponse.json(
-      { message: "Invalid credentials" },
-      { status: 401 }
-    );
-  }
+    if (!user) {
+      return NextResponse.json(
+        { message: "Invalid credentials" },
+        { status: 401 }
+      );
+    }
 
-  const valid = await bcrypt.compare(
-    password,
-    user.password
-  );
+    const valid = await bcrypt.compare(password, user.password);
 
-  if (!valid) {
-    return NextResponse.json(
-      { message: "Invalid credentials" },
-      { status: 401 }
-    );
-  }
+    if (!valid) {
+      return NextResponse.json(
+        { message: "Invalid credentials" },
+        { status: 401 }
+      );
+    }
 
-  const token = generateToken(user);
-
-  return NextResponse.json({
-    token,
-    user: {
-      id: user._id,
-      name: user.name,
+    const token = generateToken({
+      id: user._id.toString(),
       email: user.email,
       role: user.role,
-    },
-  });
+    });
+
+    return NextResponse.json({
+      token,
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error("LOGIN ERROR:", error);
+
+    return NextResponse.json(
+      { message: "Internal Server Error" },
+      { status: 500 }
+    );
+  }
 }
