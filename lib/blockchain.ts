@@ -1,18 +1,39 @@
+"use client";
+
 import { BrowserProvider, Contract } from "ethers";
+import abi from "@/lib/abi/TrustKasTreasury.json";
 
-const CONTRACT =
-  "0xYOUR_CONTRACT_ADDRESS";
+export const CONTRACT_ADDRESS =
+  process.env.NEXT_PUBLIC_CONTRACT_ADDRESS!;
 
-const ABI = [
-  "function donate(string proposalId) payable",
-  "function getBalance() view returns(uint)",
-  "function getDonationCount() view returns(uint)"
-];
+export async function getProvider() {
+  if (!window.ethereum) {
+    throw new Error("MetaMask is not installed");
+  }
 
-export async function getContract() {
   const provider = new BrowserProvider(window.ethereum);
 
-  const signer = await provider.getSigner();
+  await provider.send("eth_requestAccounts", []);
 
-  return new Contract(CONTRACT, ABI, signer);
+  return provider;
+}
+
+export async function getSigner() {
+  const provider = await getProvider();
+  return await provider.getSigner();
+}
+
+export async function getWalletAddress() {
+  const signer = await getSigner();
+  return await signer.getAddress();
+}
+
+export async function getContract() {
+  const signer = await getSigner();
+
+  return new Contract(
+    CONTRACT_ADDRESS,
+    abi,
+    signer
+  );
 }

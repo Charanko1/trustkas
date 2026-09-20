@@ -10,7 +10,10 @@ import {
   Clock,
   XCircle,
 } from "lucide-react";
-import { getContract } from "@/lib/blockchain";
+import {
+  getContract,
+  getWalletAddress,
+} from "@/lib/blockchain";
 import { parseEther } from "ethers";
 
 interface Proposal {
@@ -28,12 +31,10 @@ interface Proposal {
 
 export default function ProposalDetailPage() {
   const params = useParams();
-
   const proposalId = params.proposalId as string;
 
-  const [proposal, setProposal] = useState<Proposal | null>(
-    null
-  );
+  const [proposal, setProposal] =
+    useState<Proposal | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [donating, setDonating] = useState(false);
@@ -49,7 +50,6 @@ export default function ProposalDetailPage() {
       );
 
       const data = await res.json();
-
       setProposal(data);
     } catch (err) {
       console.error(err);
@@ -65,18 +65,33 @@ export default function ProposalDetailPage() {
       setDonating(true);
 
       const contract = await getContract();
+      const donor = await getWalletAddress();
 
       const tx = await contract.donate(
         proposal._id,
         {
-          value: parseEther("1"), // 1 POL
+          value: parseEther("0.001"), // 0.001 ETH Sepolia
         }
       );
 
       await tx.wait();
 
-      alert("Donation Success!");
+      await fetch(
+        `/api/proposals/${proposal._id}/donate`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            amount: 0.001,
+            donor,
+            txHash: tx.hash,
+          }),
+        }
+      );
 
+      alert("Donation Success!");
       fetchProposal();
     } catch (err) {
       console.error(err);
@@ -95,7 +110,8 @@ export default function ProposalDetailPage() {
   }
 
   const percentage = Math.round(
-    (proposal.fundedAmount / proposal.targetAmount) *
+    (proposal.fundedAmount /
+      proposal.targetAmount) *
       100
   );
 
@@ -114,8 +130,10 @@ export default function ProposalDetailPage() {
         <div className="grid grid-cols-3 gap-6 mt-8">
           <div>
             <div className="flex items-center gap-2">
-              <User size={18}/>
-              <span className="text-sm">Creator</span>
+              <User size={18} />
+              <span className="text-sm">
+                Creator
+              </span>
             </div>
 
             <h3 className="font-semibold mt-2">
@@ -125,8 +143,10 @@ export default function ProposalDetailPage() {
 
           <div>
             <div className="flex items-center gap-2">
-              <Calendar size={18}/>
-              <span className="text-sm">Deadline</span>
+              <Calendar size={18} />
+              <span className="text-sm">
+                Deadline
+              </span>
             </div>
 
             <h3 className="font-semibold mt-2">
@@ -138,8 +158,10 @@ export default function ProposalDetailPage() {
 
           <div>
             <div className="flex items-center gap-2">
-              <Wallet size={18}/>
-              <span className="text-sm">Status</span>
+              <Wallet size={18} />
+              <span className="text-sm">
+                Status
+              </span>
             </div>
 
             <span className="inline-block mt-2 bg-white/20 px-3 py-1 rounded-full text-sm">
@@ -167,7 +189,7 @@ export default function ProposalDetailPage() {
             Funding Progress
           </h2>
 
-          <Wallet className="text-blue-600"/>
+          <Wallet className="text-blue-600" />
         </div>
 
         <div className="grid grid-cols-2 gap-4 mb-6">
@@ -177,7 +199,7 @@ export default function ProposalDetailPage() {
             </p>
 
             <h2 className="text-2xl font-bold">
-              {proposal.targetAmount} POL
+              {proposal.targetAmount} ETH
             </h2>
           </div>
 
@@ -187,7 +209,7 @@ export default function ProposalDetailPage() {
             </p>
 
             <h2 className="text-2xl font-bold text-green-600">
-              {proposal.fundedAmount} POL
+              {proposal.fundedAmount} ETH
             </h2>
           </div>
         </div>
@@ -195,7 +217,6 @@ export default function ProposalDetailPage() {
         <div>
           <div className="flex justify-between text-sm mb-2">
             <span>Progress</span>
-
             <span>{percentage}%</span>
           </div>
 
@@ -218,7 +239,7 @@ export default function ProposalDetailPage() {
 
         {proposal.status === "Pending" && (
           <div className="flex items-center gap-3 text-yellow-600">
-            <Clock size={24}/>
+            <Clock size={24} />
 
             <div>
               <h3 className="font-semibold">
@@ -226,7 +247,8 @@ export default function ProposalDetailPage() {
               </h3>
 
               <p className="text-sm text-gray-500">
-                Proposal is currently under review.
+                Proposal is currently under
+                review.
               </p>
             </div>
           </div>
@@ -234,7 +256,7 @@ export default function ProposalDetailPage() {
 
         {proposal.status === "Approved" && (
           <div className="flex items-center gap-3 text-green-600">
-            <CheckCircle size={24}/>
+            <CheckCircle size={24} />
 
             <div>
               <h3 className="font-semibold">
@@ -242,7 +264,8 @@ export default function ProposalDetailPage() {
               </h3>
 
               <p className="text-sm">
-                Approved by {proposal.approvedBy}
+                Approved by{" "}
+                {proposal.approvedBy}
               </p>
 
               {proposal.approvedAt && (
@@ -258,7 +281,7 @@ export default function ProposalDetailPage() {
 
         {proposal.status === "Rejected" && (
           <div className="flex items-center gap-3 text-red-600">
-            <XCircle size={24}/>
+            <XCircle size={24} />
 
             <div>
               <h3 className="font-semibold">
@@ -266,7 +289,8 @@ export default function ProposalDetailPage() {
               </h3>
 
               <p className="text-sm">
-                Rejected by {proposal.approvedBy}
+                Rejected by{" "}
+                {proposal.approvedBy}
               </p>
             </div>
           </div>
@@ -281,11 +305,13 @@ export default function ProposalDetailPage() {
           </h2>
 
           <p className="text-gray-500 mb-1">
-            Support this proposal using POL from your MetaMask wallet.
+            Support this proposal using ETH
+            from your MetaMask wallet.
           </p>
 
           <p className="text-sm text-blue-600 mb-6">
-            Donation Amount: 1 POL (+ Network Fee)
+            Donation Amount: 0.001 ETH
+            (Sepolia)
           </p>
 
           <button
@@ -295,7 +321,7 @@ export default function ProposalDetailPage() {
           >
             {donating
               ? "Waiting Confirmation..."
-              : "Donate 1 POL"}
+              : "Donate 0.001 ETH"}
           </button>
         </div>
       )}

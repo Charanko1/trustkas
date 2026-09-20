@@ -33,6 +33,31 @@ const ProposalSchema = new Schema(
       default: 0,
     },
 
+    // ===== RIWAYAT DONASI BLOCKCHAIN =====
+    transactions: [
+      {
+        amount: {
+          type: Number,
+          required: true,
+        },
+
+        txHash: {
+          type: String,
+          required: true,
+        },
+
+        donor: {
+          type: String,
+          default: "",
+        },
+
+        donatedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+
     status: {
       type: String,
       enum: ["Pending", "Approved", "Rejected"],
