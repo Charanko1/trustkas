@@ -7,13 +7,27 @@ const UserSchema = new Schema(
       required: true,
     },
 
-    wallet: {
+    email: {
       type: String,
+      required: true,
       unique: true,
+    },
+
+    password: {
+      type: String,
       required: true,
     },
 
-    email: String,
+    role: {
+      type: String,
+      enum: ["member", "validator", "admin"],
+      default: "member",
+    },
+
+    walletAddress: {
+      type: String,
+      default: "",
+    },
   },
   {
     timestamps: true,

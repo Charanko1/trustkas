@@ -1,28 +1,41 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
+
 import Election from "@/models/Election";
+import Organization from "@/models/Organization";
 
-export async function GET(req: Request) {
-  await connectDB();
+export async function GET(req: NextRequest) {
+  try {
+    await connectDB();
 
-  const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(req.url);
+    const organizationSlug = searchParams.get("organization");
 
-  const organizationId =
-    searchParams.get("organization");
+    if (!organizationSlug) {
+      return NextResponse.json([]);
+    }
 
-  const elections = await Election.find({
-    organizationId,
-  }).sort({ createdAt: -1 });
+    // Cari organization berdasarkan slug
+    const organization = await Organization.findOne({
+      slug: organizationSlug,
+    });
 
-  return NextResponse.json(elections);
-}
+    if (!organization) {
+      return NextResponse.json([]);
+    }
 
-export async function POST(req: Request) {
-  await connectDB();
+    // Baru cari election memakai ObjectId
+    const elections = await Election.find({
+      organizationId: organization._id,
+    }).sort({ createdAt: -1 });
 
-  const body = await req.json();
+    return NextResponse.json(elections);
+  } catch (error) {
+    console.error(error);
 
-  const election = await Election.create(body);
-
-  return NextResponse.json(election);
+    return NextResponse.json(
+      { message: "Failed to fetch elections" },
+      { status: 500 }
+    );
+  }
 }

@@ -7,63 +7,80 @@ interface Props {
   onClose: () => void;
 }
 
-export default function CreateOrgModal({ open, onClose }: Props) {
+export default function CreateOrgModal({
+  open,
+  onClose,
+}: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
 
   if (!open) return null;
 
-  const handleCreate = async () => {
+  async function handleCreate() {
     if (!name.trim()) return;
 
     setLoading(true);
 
     try {
+      const token = localStorage.getItem("token");
+      const user = JSON.parse(
+        localStorage.getItem("user") || "{}"
+      );
+
       const slug = name
         .toLowerCase()
         .trim()
         .replace(/\s+/g, "-");
 
+      // ✅ API plural
       const res = await fetch("/api/organizations", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           name,
           slug,
           description,
+          ownerName: user.name,
+          walletAddress: user.walletAddress || "",
         }),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        throw new Error("Failed to create organization");
+        throw new Error(data.message);
       }
 
-      // Reset form
       setName("");
       setDescription("");
-
       onClose();
 
-      // Refresh dashboard
+      // refresh dashboard
       window.location.reload();
-    } catch (error) {
-      console.error(error);
-      alert("Failed to create organization");
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Failed to create organization");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl w-[500px] p-6 space-y-5">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">Create Organization</h2>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+      <div className="bg-white w-full max-w-lg rounded-2xl p-6 space-y-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold">
+            Create Organization
+          </h2>
 
-          <button onClick={onClose} className="text-gray-500 hover:text-black">
+          <button
+            onClick={onClose}
+            className="text-xl text-gray-500 hover:text-black"
+          >
             ✕
           </button>
         </div>
@@ -76,8 +93,8 @@ export default function CreateOrgModal({ open, onClose }: Props) {
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full mt-2 border rounded-lg p-3 outline-none focus:border-blue-600"
             placeholder="HIMA Informatika"
+            className="mt-2 w-full rounded-xl border p-3 outline-none focus:border-blue-600"
           />
         </div>
 
@@ -88,18 +105,22 @@ export default function CreateOrgModal({ open, onClose }: Props) {
 
           <textarea
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full mt-2 border rounded-lg p-3 h-28 outline-none focus:border-blue-600"
+            onChange={(e) =>
+              setDescription(e.target.value)
+            }
             placeholder="Student organization..."
+            className="mt-2 h-28 w-full resize-none rounded-xl border p-3 outline-none focus:border-blue-600"
           />
         </div>
 
         <button
           onClick={handleCreate}
           disabled={loading}
-          className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          className="w-full rounded-xl bg-blue-600 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
         >
-          {loading ? "Creating..." : "Create Organization"}
+          {loading
+            ? "Creating..."
+            : "Create Organization"}
         </button>
       </div>
     </div>

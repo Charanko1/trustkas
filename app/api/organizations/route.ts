@@ -1,42 +1,155 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
+import { verifyToken } from "@/lib/auth";
 
 import Organization from "@/models/Organization";
 import Membership from "@/models/Membership";
 
-export async function GET() {
-  await connectDB();
+function generateInviteCode(name: string) {
+  const prefix = name
+    .replace(/[^A-Za-z]/g, "")
+    .toUpperCase()
+    .slice(0, 4);
 
-  const organizations = await Organization.find();
+  const random = Math.random()
+    .toString(36)
+    .substring(2, 8)
+    .toUpperCase();
 
-  return NextResponse.json(organizations);
+  return `${prefix}-${random}`;
 }
 
-export async function POST(req: Request) {
-  await connectDB();
+async function generateUniqueSlug(baseSlug: string) {
+  let slug = baseSlug;
+  let count = 1;
 
-  const body = await req.json();
+  while (await Organization.findOne({ slug })) {
+    slug = `${baseSlug}-${count}`;
+    count++;
+  }
 
-  // Buat organization
-  const organization = await Organization.create({
-    name: body.name,
-    slug: body.slug,
-    description: body.description,
-    treasury: 0,
-    members: 1,
-    owner: "wallet-demo",
-  });
+  return slug;
+}
 
-  // Creator otomatis menjadi Admin
-  await Membership.create({
-    organizationId: organization._id,
-    userId: "demo-user",
-    name: "Ridwan Aziz",
-    walletAddress: "wallet-demo",
-    role: "Admin",
-  });
+// =======================
+// GET MY ORGANIZATIONS
+// =======================
+export async function GET(req: NextRequest) {
+  try {
+    await connectDB();
 
-  return NextResponse.json(organization, {
-    status: 201,
-  });
+    const token = req.headers
+      .get("authorization")
+      ?.replace("Bearer ", "");
+
+    if (!token) {
+      return NextResponse.json(
+        { message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const user = verifyToken(token) as { id: string };
+
+    const memberships = await Membership.find({
+      userId: user.id,
+    });
+
+    const organizationIds = memberships.map(
+      (m) => m.organizationId
+    );
+
+    const organizations = await Organization.find({
+      _id: { $in: organizationIds },
+    });
+
+    const result = organizations.map((org) => ({
+      _id: org._id,
+      name: org.name,
+      slug: org.slug,
+      description: org.description,
+      treasury: org.treasury,
+      members: Array.isArray(org.members)
+        ? org.members.length
+        : 0,
+      code: org.code,
+    }));
+
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error(error);
+
+    return NextResponse.json(
+      { message: "Internal Server Error" },
+      { status: 500 }
+    );
+  }
+}
+
+// =======================
+// CREATE ORGANIZATION
+// =======================
+export async function POST(req: NextRequest) {
+  try {
+    await connectDB();
+
+    const token = req.headers
+      .get("authorization")
+      ?.replace("Bearer ", "");
+
+    if (!token) {
+      return NextResponse.json(
+        { message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const user = verifyToken(token) as { id: string };
+
+    const body = await req.json();
+
+    const baseSlug = body.slug
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, "-");
+
+    const slug = await generateUniqueSlug(baseSlug);
+
+    const inviteCode = generateInviteCode(body.name);
+
+    const organization = await Organization.create({
+      name: body.name,
+      slug,
+      description: body.description,
+      code: inviteCode,
+      treasury: 0,
+      owner: user.id,
+      members: [user.id],
+    });
+
+    await Membership.create({
+      organizationId: organization._id,
+      userId: user.id,
+      name: body.ownerName,
+      walletAddress: body.walletAddress || "",
+      role: "Admin",
+    });
+
+    return NextResponse.json(
+      {
+        message: "Organization created",
+        organization,
+      },
+      { status: 201 }
+    );
+  } catch (error: any) {
+    console.error(error);
+
+    return NextResponse.json(
+      {
+        message: error.message,
+      },
+      { status: 500 }
+    );
+  }
 }

@@ -13,22 +13,36 @@ const OrganizationSchema = new Schema(
       required: true,
     },
 
-    description: String,
+    description: {
+      type: String,
+      default: "",
+    },
+
+    // Invitation Code
+    code: {
+      type: String,
+      unique: true,
+      required: true,
+    },
 
     treasury: {
       type: Number,
       default: 0,
     },
 
-    members: {
-      type: Number,
-      default: 1,
-    },
-
     owner: {
-      type: String,
+      type: Schema.Types.ObjectId,
+      ref: "User",
       required: true,
     },
+
+    // Anggota organisasi
+    members: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
   },
   {
     timestamps: true,
