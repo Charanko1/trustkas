@@ -45,7 +45,9 @@ export function WalletProvider({
 }) {
   const [address, setAddress] = useState("");
 
+  // ===============================
   // Switch otomatis ke BOT Chain
+  // ===============================
   async function switchToBOT() {
     const chainId = await window.ethereum.request({
       method: "eth_chainId",
@@ -59,7 +61,6 @@ export function WalletProvider({
         params: [{ chainId: BOT_CHAIN.chainId }],
       });
     } catch (error: any) {
-      // Network belum ada di MetaMask
       if (error.code === 4902) {
         await window.ethereum.request({
           method: "wallet_addEthereumChain",
@@ -71,6 +72,9 @@ export function WalletProvider({
     }
   }
 
+  // ===============================
+  // Connect Wallet
+  // ===============================
   async function connectWallet() {
     if (!window.ethereum) {
       alert("Please install MetaMask");
@@ -81,7 +85,7 @@ export function WalletProvider({
       // 1. Switch ke BOT Chain
       await switchToBOT();
 
-      // 2. Connect wallet
+      // 2. Connect MetaMask
       const provider = new BrowserProvider(window.ethereum);
 
       const accounts = await provider.send(
@@ -89,8 +93,36 @@ export function WalletProvider({
         []
       );
 
-      // 3. Simpan address
-      setAddress(accounts[0]);
+      const walletAddress = accounts[0];
+
+      // 3. Simpan ke Context
+      setAddress(walletAddress);
+
+      // 4. Update MongoDB
+      const token = localStorage.getItem("token");
+
+      const res = await fetch("/api/user/profile", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          walletAddress,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to save wallet");
+      }
+
+      const updatedUser = await res.json();
+
+      // 5. Update localStorage
+      localStorage.setItem(
+        "user",
+        JSON.stringify(updatedUser)
+      );
     } catch (error) {
       console.error(error);
       alert("Failed to connect BOT Chain");

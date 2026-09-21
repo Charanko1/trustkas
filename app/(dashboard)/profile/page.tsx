@@ -29,8 +29,16 @@ export default function ProfilePage() {
         },
       });
 
+      if (!res.ok) {
+        throw new Error("Failed to load profile");
+      }
+
       const data = await res.json();
+
       setProfile(data);
+
+      // Sinkronkan localStorage
+      localStorage.setItem("user", JSON.stringify(data));
     } catch (err) {
       console.error(err);
     } finally {
@@ -56,6 +64,7 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      {/* Hero */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white">
         <div className="flex items-center gap-5">
           <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-3xl font-bold">
@@ -78,6 +87,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* Info */}
       <div className="bg-white rounded-2xl border p-6 space-y-5">
         <h2 className="text-xl font-bold">
           Account Information
@@ -91,7 +101,9 @@ export default function ProfilePage() {
               Full Name
             </p>
 
-            <p className="font-semibold">{profile.name}</p>
+            <p className="font-semibold">
+              {profile.name}
+            </p>
           </div>
         </div>
 
@@ -99,9 +111,13 @@ export default function ProfilePage() {
           <Mail className="text-blue-600" />
 
           <div>
-            <p className="text-sm text-gray-500">Email</p>
+            <p className="text-sm text-gray-500">
+              Email
+            </p>
 
-            <p className="font-semibold">{profile.email}</p>
+            <p className="font-semibold">
+              {profile.email}
+            </p>
           </div>
         </div>
 
@@ -109,7 +125,9 @@ export default function ProfilePage() {
           <Shield className="text-blue-600" />
 
           <div>
-            <p className="text-sm text-gray-500">Role</p>
+            <p className="text-sm text-gray-500">
+              Role
+            </p>
 
             <p className="font-semibold capitalize">
               {profile.role}
@@ -120,7 +138,7 @@ export default function ProfilePage() {
         <div className="flex items-center gap-4">
           <Wallet className="text-blue-600" />
 
-          <div>
+          <div className="min-w-0">
             <p className="text-sm text-gray-500">
               Wallet Address
             </p>
