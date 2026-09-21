@@ -170,19 +170,45 @@ export default function OrganizationPage() {
       />
 
       <div className="space-y-6">
+        {/* ================= HERO ================= */}
+        <div className="relative bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 md:p-8 text-white overflow-hidden">
 
-        {/* HERO */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white">
-          <h1 className="text-3xl font-bold">{org.name}</h1>
+          {/* Invite Code */}
+          <button
+            onClick={copyCode}
+            className="absolute top-5 right-5 bg-white/15 hover:bg-white/25 border border-white/20 backdrop-blur-sm rounded-full px-3 py-2 flex items-center gap-2 transition"
+          >
+            <div className="text-left hidden sm:block">
+              <p className="text-[9px] uppercase tracking-wider text-blue-100">
+                Invite
+              </p>
 
-          <p className="text-blue-100 mt-2">
+              <p className="text-xs font-bold tracking-wider">
+                {org.code}
+              </p>
+            </div>
+
+            {copied ? (
+              <Check size={16} className="text-green-300" />
+            ) : (
+              <Copy size={16} />
+            )}
+          </button>
+
+          {/* Organization Info */}
+          <h1 className="text-3xl font-bold pr-28">
+            {org.name}
+          </h1>
+
+          <p className="text-blue-100 mt-2 pr-20">
             {org.description}
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-6 mt-8">
             <div>
-              <div className="flex items-center gap-2">
-                <Wallet size={18}/>
+              <div className="flex items-center gap-2 text-blue-100">
+                <Wallet size={18} />
                 <span className="text-sm">Treasury</span>
               </div>
 
@@ -192,8 +218,8 @@ export default function OrganizationPage() {
             </div>
 
             <div>
-              <div className="flex items-center gap-2">
-                <Users size={18}/>
+              <div className="flex items-center gap-2 text-blue-100">
+                <Users size={18} />
                 <span className="text-sm">Members</span>
               </div>
 
@@ -203,8 +229,8 @@ export default function OrganizationPage() {
             </div>
 
             <div>
-              <div className="flex items-center gap-2">
-                <FolderKanban size={18}/>
+              <div className="flex items-center gap-2 text-blue-100">
+                <FolderKanban size={18} />
                 <span className="text-sm">Groups</span>
               </div>
 
@@ -215,49 +241,7 @@ export default function OrganizationPage() {
           </div>
         </div>
 
-        {/* INVITATION CODE */}
-        <div className="bg-white border rounded-2xl p-6">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-            <div>
-              <h2 className="text-xl font-bold">
-                Invitation Code
-              </h2>
-
-              <p className="text-gray-500 text-sm">
-                Share this code so members can join your organization.
-              </p>
-            </div>
-
-            <button
-              onClick={copyCode}
-              className="flex items-center justify-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 transition"
-            >
-              {copied ? (
-                <>
-                  <Check size={18}/>
-                  Copied
-                </>
-              ) : (
-                <>
-                  <Copy size={18}/>
-                  Copy Code
-                </>
-              )}
-            </button>
-          </div>
-
-          <div className="mt-5 bg-blue-50 border border-blue-200 rounded-xl p-5 flex items-center justify-between">
-            <h3 className="text-xl md:text-2xl font-bold tracking-[0.25em] text-blue-700">
-              {org.code}
-            </h3>
-
-            <span className="hidden md:block text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full">
-              Active
-            </span>
-          </div>
-        </div>
-
-        {/* VALIDATOR ELECTION */}
+        {/* ================= VALIDATOR ELECTION ================= */}
         <div className="bg-white rounded-2xl border p-6">
           <div className="flex justify-between items-center mb-5">
             <div>
@@ -272,7 +256,7 @@ export default function OrganizationPage() {
 
             <button
               onClick={() => setElectionOpen(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
             >
               Open Session
             </button>
@@ -297,8 +281,13 @@ export default function OrganizationPage() {
                         </h3>
 
                         <p className="text-sm text-gray-500">
-                          {new Date(election.startDate).toLocaleDateString()} -{" "}
-                          {new Date(election.endDate).toLocaleDateString()}
+                          {new Date(
+                            election.startDate
+                          ).toLocaleDateString()}{" "}
+                          -{" "}
+                          {new Date(
+                            election.endDate
+                          ).toLocaleDateString()}
                         </p>
                       </div>
 
@@ -313,7 +302,7 @@ export default function OrganizationPage() {
           )}
         </div>
 
-        {/* GROUP HEADER */}
+        {/* ================= GROUP HEADER ================= */}
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-2xl font-bold">
@@ -327,14 +316,14 @@ export default function OrganizationPage() {
 
           <button
             onClick={() => setGroupOpen(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition"
           >
-            <Plus size={18}/>
+            <Plus size={18} />
             Create Group
           </button>
         </div>
 
-        {/* GROUP LIST */}
+        {/* ================= GROUP LIST ================= */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {groups.map((group) => (
             <Link
@@ -353,7 +342,7 @@ export default function OrganizationPage() {
                     </p>
                   </div>
 
-                  <Users className="text-blue-600"/>
+                  <Users className="text-blue-600" />
                 </div>
 
                 <div className="mt-6 pt-4 border-t flex justify-between text-sm">
