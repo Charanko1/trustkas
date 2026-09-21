@@ -1,31 +1,72 @@
 "use client";
 
 import { BrowserProvider, Contract } from "ethers";
-import abi from "@/lib/abi/TrustKasTreasury.json";
+import ABI from "@/lib/abi/TrustKasTreasury.json";
 
 export const CONTRACT_ADDRESS =
   process.env.NEXT_PUBLIC_CONTRACT_ADDRESS!;
 
+// BOT Chain Testnet
+const BOT_CHAIN = {
+  chainId: "0x3C8", // 968
+  chainName: "BOT Chain Testnet",
+  nativeCurrency: {
+    name: "BOT",
+    symbol: "BOT",
+    decimals: 18,
+  },
+  rpcUrls: ["https://rpc.bohr.life"],
+  blockExplorerUrls: ["https://scan.bohr.life"],
+};
+
+declare global {
+  interface Window {
+    ethereum: any;
+  }
+}
+
 export async function getProvider() {
   if (!window.ethereum) {
-    throw new Error("MetaMask is not installed");
+    throw new Error("Please install MetaMask");
   }
 
-  const provider = new BrowserProvider(window.ethereum);
+  await window.ethereum.request({
+    method: "eth_requestAccounts",
+  });
 
-  await provider.send("eth_requestAccounts", []);
+  const currentChain = await window.ethereum.request({
+    method: "eth_chainId",
+  });
 
-  return provider;
+  if (currentChain !== BOT_CHAIN.chainId) {
+    try {
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: BOT_CHAIN.chainId }],
+      });
+    } catch (error: any) {
+      if (error.code === 4902) {
+        await window.ethereum.request({
+          method: "wallet_addEthereumChain",
+          params: [BOT_CHAIN],
+        });
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  return new BrowserProvider(window.ethereum);
 }
 
 export async function getSigner() {
   const provider = await getProvider();
-  return await provider.getSigner();
+  return provider.getSigner();
 }
 
 export async function getWalletAddress() {
   const signer = await getSigner();
-  return await signer.getAddress();
+  return signer.getAddress();
 }
 
 export async function getContract() {
@@ -33,7 +74,7 @@ export async function getContract() {
 
   return new Contract(
     CONTRACT_ADDRESS,
-    abi,
+    ABI,
     signer
   );
 }

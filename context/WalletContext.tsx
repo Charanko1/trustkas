@@ -17,6 +17,27 @@ const WalletContext = createContext<WalletContextType>({
   connectWallet: async () => {},
 });
 
+// ===============================
+// BOT Chain Testnet Config
+// ===============================
+const BOT_CHAIN = {
+  chainId: "0x3C8", // 968
+  chainName: "BOT Chain Testnet",
+  nativeCurrency: {
+    name: "BOT",
+    symbol: "BOT",
+    decimals: 18,
+  },
+  rpcUrls: ["https://rpc.bohr.life"],
+  blockExplorerUrls: ["https://scan.bohr.life"],
+};
+
+declare global {
+  interface Window {
+    ethereum: any;
+  }
+}
+
 export function WalletProvider({
   children,
 }: {
@@ -24,41 +45,29 @@ export function WalletProvider({
 }) {
   const [address, setAddress] = useState("");
 
-  // Switch ke Polygon Amoy
-  async function switchToPolygon() {
+  // Switch otomatis ke BOT Chain
+  async function switchToBOT() {
     const chainId = await window.ethereum.request({
       method: "eth_chainId",
     });
 
-    // Polygon Amoy = 80002 = 0x13882
-    if (chainId === "0x13882") return;
+    if (chainId === BOT_CHAIN.chainId) return;
 
     try {
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0x13882" }],
+        params: [{ chainId: BOT_CHAIN.chainId }],
       });
-    } catch {
-      await window.ethereum.request({
-        method: "wallet_addEthereumChain",
-        params: [
-          {
-            chainId: "0x13882",
-            chainName: "Polygon Amoy",
-            nativeCurrency: {
-              name: "POL",
-              symbol: "POL",
-              decimals: 18,
-            },
-            rpcUrls: [
-              "https://rpc-amoy.polygon.technology",
-            ],
-            blockExplorerUrls: [
-              "https://amoy.polygonscan.com",
-            ],
-          },
-        ],
-      });
+    } catch (error: any) {
+      // Network belum ada di MetaMask
+      if (error.code === 4902) {
+        await window.ethereum.request({
+          method: "wallet_addEthereumChain",
+          params: [BOT_CHAIN],
+        });
+      } else {
+        throw error;
+      }
     }
   }
 
@@ -68,19 +77,24 @@ export function WalletProvider({
       return;
     }
 
-    // 1. Pastikan jaringan Polygon Amoy
-    await switchToPolygon();
+    try {
+      // 1. Switch ke BOT Chain
+      await switchToBOT();
 
-    // 2. Connect wallet
-    const provider = new BrowserProvider(window.ethereum);
+      // 2. Connect wallet
+      const provider = new BrowserProvider(window.ethereum);
 
-    const accounts = await provider.send(
-      "eth_requestAccounts",
-      []
-    );
+      const accounts = await provider.send(
+        "eth_requestAccounts",
+        []
+      );
 
-    // 3. Simpan address
-    setAddress(accounts[0]);
+      // 3. Simpan address
+      setAddress(accounts[0]);
+    } catch (error) {
+      console.error(error);
+      alert("Failed to connect BOT Chain");
+    }
   }
 
   return (

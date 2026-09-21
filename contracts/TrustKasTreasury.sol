@@ -29,9 +29,9 @@ contract TrustKasTreasury {
         uint256 amount
     );
 
-    // =========================
-    // Donate POL
-    // =========================
+    // =====================================
+    // Donate BOT (Native Token)
+    // =====================================
     function donate(string memory proposalId)
         external
         payable
@@ -57,9 +57,9 @@ contract TrustKasTreasury {
         );
     }
 
-    // =========================
-    // Withdraw Treasury
-    // =========================
+    // =====================================
+    // Withdraw BOT Treasury
+    // =====================================
     function withdraw(address payable to)
         external
     {
@@ -88,9 +88,9 @@ contract TrustKasTreasury {
         );
     }
 
-    // =========================
-    // Treasury Balance
-    // =========================
+    // =====================================
+    // Current Treasury Balance (BOT)
+    // =====================================
     function getBalance()
         external
         view
@@ -99,9 +99,9 @@ contract TrustKasTreasury {
         return address(this).balance;
     }
 
-    // =========================
-    // Total Donation
-    // =========================
+    // =====================================
+    // Total Donations
+    // =====================================
     function getDonationCount()
         external
         view
@@ -110,9 +110,9 @@ contract TrustKasTreasury {
         return donations.length;
     }
 
-    // =========================
+    // =====================================
     // Donation Detail
-    // =========================
+    // =====================================
     function getDonation(uint256 index)
         external
         view

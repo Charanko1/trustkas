@@ -6,11 +6,12 @@ dotenv.config();
 
 const config: HardhatUserConfig = {
   solidity: "0.8.20",
+
   networks: {
-    amoy: {
-      url: process.env.AMOY_RPC!,
+    bot: {
+      url: process.env.BOT_RPC!,
       accounts: [process.env.PRIVATE_KEY!],
-      chainId: 80002,
+      chainId: 968,
     },
   },
 };
