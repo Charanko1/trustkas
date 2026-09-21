@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -9,6 +8,8 @@ import {
   Users,
   FolderKanban,
   Plus,
+  Copy,
+  Check,
 } from "lucide-react";
 
 import CreateGroupModal from "@/components/group/CreateGroupModal";
@@ -21,6 +22,7 @@ interface Organization {
   description: string;
   treasury: number;
   members: number;
+  code: string;
 }
 
 interface Group {
@@ -50,11 +52,10 @@ export default function OrganizationPage() {
 
   const [groupOpen, setGroupOpen] = useState(false);
   const [electionOpen, setElectionOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (orgId) {
-      fetchData();
-    }
+    if (orgId) fetchData();
   }, [orgId]);
 
   async function fetchData() {
@@ -63,26 +64,17 @@ export default function OrganizationPage() {
     const token = localStorage.getItem("token");
 
     try {
-      const [orgRes, groupRes, electionRes] =
-        await Promise.all([
-          fetch(`/api/organizations/${orgId}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }),
-
-          fetch(`/api/groups?organization=${orgId}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }),
-
-          fetch(`/api/elections?organization=${orgId}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }),
-        ]);
+      const [orgRes, groupRes, electionRes] = await Promise.all([
+        fetch(`/api/organizations/${orgId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`/api/groups?organization=${orgId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`/api/elections?organization=${orgId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
 
       const orgData = await orgRes.json();
       const groupData = await groupRes.json();
@@ -96,6 +88,15 @@ export default function OrganizationPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function copyCode() {
+    if (!org) return;
+
+    await navigator.clipboard.writeText(org.code);
+    setCopied(true);
+
+    setTimeout(() => setCopied(false), 2000);
   }
 
   async function createGroup(group: {
@@ -168,8 +169,9 @@ export default function OrganizationPage() {
         onCreate={createElection}
       />
 
-      <div className="space-y-8">
-        {/* Hero */}
+      <div className="space-y-6">
+
+        {/* HERO */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white">
           <h1 className="text-3xl font-bold">{org.name}</h1>
 
@@ -180,7 +182,7 @@ export default function OrganizationPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
             <div>
               <div className="flex items-center gap-2">
-                <Wallet size={18} />
+                <Wallet size={18}/>
                 <span className="text-sm">Treasury</span>
               </div>
 
@@ -191,7 +193,7 @@ export default function OrganizationPage() {
 
             <div>
               <div className="flex items-center gap-2">
-                <Users size={18} />
+                <Users size={18}/>
                 <span className="text-sm">Members</span>
               </div>
 
@@ -202,7 +204,7 @@ export default function OrganizationPage() {
 
             <div>
               <div className="flex items-center gap-2">
-                <FolderKanban size={18} />
+                <FolderKanban size={18}/>
                 <span className="text-sm">Groups</span>
               </div>
 
@@ -213,7 +215,49 @@ export default function OrganizationPage() {
           </div>
         </div>
 
-        {/* Validator Election */}
+        {/* INVITATION CODE */}
+        <div className="bg-white border rounded-2xl p-6">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+            <div>
+              <h2 className="text-xl font-bold">
+                Invitation Code
+              </h2>
+
+              <p className="text-gray-500 text-sm">
+                Share this code so members can join your organization.
+              </p>
+            </div>
+
+            <button
+              onClick={copyCode}
+              className="flex items-center justify-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 transition"
+            >
+              {copied ? (
+                <>
+                  <Check size={18}/>
+                  Copied
+                </>
+              ) : (
+                <>
+                  <Copy size={18}/>
+                  Copy Code
+                </>
+              )}
+            </button>
+          </div>
+
+          <div className="mt-5 bg-blue-50 border border-blue-200 rounded-xl p-5 flex items-center justify-between">
+            <h3 className="text-xl md:text-2xl font-bold tracking-[0.25em] text-blue-700">
+              {org.code}
+            </h3>
+
+            <span className="hidden md:block text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full">
+              Active
+            </span>
+          </div>
+        </div>
+
+        {/* VALIDATOR ELECTION */}
         <div className="bg-white rounded-2xl border p-6">
           <div className="flex justify-between items-center mb-5">
             <div>
@@ -253,13 +297,8 @@ export default function OrganizationPage() {
                         </h3>
 
                         <p className="text-sm text-gray-500">
-                          {new Date(
-                            election.startDate
-                          ).toLocaleDateString()}{" "}
-                          -{" "}
-                          {new Date(
-                            election.endDate
-                          ).toLocaleDateString()}
+                          {new Date(election.startDate).toLocaleDateString()} -{" "}
+                          {new Date(election.endDate).toLocaleDateString()}
                         </p>
                       </div>
 
@@ -274,7 +313,7 @@ export default function OrganizationPage() {
           )}
         </div>
 
-        {/* Groups Header */}
+        {/* GROUP HEADER */}
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-2xl font-bold">
@@ -290,12 +329,12 @@ export default function OrganizationPage() {
             onClick={() => setGroupOpen(true)}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
           >
-            <Plus size={18} />
+            <Plus size={18}/>
             Create Group
           </button>
         </div>
 
-        {/* Groups List */}
+        {/* GROUP LIST */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {groups.map((group) => (
             <Link
@@ -314,7 +353,7 @@ export default function OrganizationPage() {
                     </p>
                   </div>
 
-                  <Users className="text-blue-600" />
+                  <Users className="text-blue-600"/>
                 </div>
 
                 <div className="mt-6 pt-4 border-t flex justify-between text-sm">
