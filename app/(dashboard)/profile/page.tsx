@@ -16,6 +16,23 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // tampilkan data localStorage dulu
+    const cached = localStorage.getItem("user");
+
+    if (cached) {
+      try {
+        const user = JSON.parse(cached);
+
+        setProfile({
+          _id: user.id || "",
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          walletAddress: user.walletAddress || "",
+        });
+      } catch {}
+    }
+
     fetchProfile();
   }, []);
 
@@ -23,22 +40,34 @@ export default function ProfilePage() {
     try {
       const token = localStorage.getItem("token");
 
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
       const res = await fetch("/api/profile", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
-      if (!res.ok) {
-        throw new Error("Failed to load profile");
-      }
+      if (!res.ok) throw new Error();
 
       const data = await res.json();
 
       setProfile(data);
 
-      // Sinkronkan localStorage
-      localStorage.setItem("user", JSON.stringify(data));
+      // sinkron localStorage
+      localStorage.setItem(
+        "user",
+        JSON.stringify({
+          id: data._id,
+          name: data.name,
+          email: data.email,
+          role: data.role,
+          walletAddress: data.walletAddress,
+        })
+      );
     } catch (err) {
       console.error(err);
     } finally {
@@ -46,7 +75,7 @@ export default function ProfilePage() {
     }
   }
 
-  if (loading) {
+  if (loading && !profile) {
     return (
       <div className="flex justify-center mt-20">
         Loading...
@@ -64,7 +93,6 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {/* Hero */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white">
         <div className="flex items-center gap-5">
           <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-3xl font-bold">
@@ -72,13 +100,8 @@ export default function ProfilePage() {
           </div>
 
           <div>
-            <h1 className="text-3xl font-bold">
-              {profile.name}
-            </h1>
-
-            <p className="text-blue-100 mt-1">
-              {profile.email}
-            </p>
+            <h1 className="text-3xl font-bold">{profile.name}</h1>
+            <p className="text-blue-100 mt-1">{profile.email}</p>
 
             <span className="inline-block mt-3 bg-white/20 px-3 py-1 rounded-full text-sm capitalize">
               {profile.role}
@@ -87,7 +110,6 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Info */}
       <div className="bg-white rounded-2xl border p-6 space-y-5">
         <h2 className="text-xl font-bold">
           Account Information
@@ -95,40 +117,24 @@ export default function ProfilePage() {
 
         <div className="flex items-center gap-4">
           <User className="text-blue-600" />
-
           <div>
-            <p className="text-sm text-gray-500">
-              Full Name
-            </p>
-
-            <p className="font-semibold">
-              {profile.name}
-            </p>
+            <p className="text-sm text-gray-500">Full Name</p>
+            <p className="font-semibold">{profile.name}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-4">
           <Mail className="text-blue-600" />
-
           <div>
-            <p className="text-sm text-gray-500">
-              Email
-            </p>
-
-            <p className="font-semibold">
-              {profile.email}
-            </p>
+            <p className="text-sm text-gray-500">Email</p>
+            <p className="font-semibold">{profile.email}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-4">
           <Shield className="text-blue-600" />
-
           <div>
-            <p className="text-sm text-gray-500">
-              Role
-            </p>
-
+            <p className="text-sm text-gray-500">Role</p>
             <p className="font-semibold capitalize">
               {profile.role}
             </p>
@@ -137,12 +143,10 @@ export default function ProfilePage() {
 
         <div className="flex items-center gap-4">
           <Wallet className="text-blue-600" />
-
           <div className="min-w-0">
             <p className="text-sm text-gray-500">
               Wallet Address
             </p>
-
             <p className="font-mono text-sm break-all">
               {profile.walletAddress || "Not Connected"}
             </p>

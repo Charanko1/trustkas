@@ -1,14 +1,13 @@
 "use client";
 
-import { BrowserProvider, Contract } from "ethers";
+import { BrowserProvider, Contract, JsonRpcSigner } from "ethers";
 import ABI from "@/lib/abi/TrustKasTreasury.json";
 
 export const CONTRACT_ADDRESS =
   process.env.NEXT_PUBLIC_CONTRACT_ADDRESS!;
 
-// BOT Chain Testnet
 const BOT_CHAIN = {
-  chainId: "0x3C8", // 968
+  chainId: "0x3C8",
   chainName: "BOT Chain Testnet",
   nativeCurrency: {
     name: "BOT",
@@ -25,56 +24,78 @@ declare global {
   }
 }
 
+let provider: BrowserProvider | null = null;
+let signer: JsonRpcSigner | null = null;
+let contract: Contract | null = null;
+
+async function ensureChain() {
+  const current = await window.ethereum.request({
+    method: "eth_chainId",
+  });
+
+  if (current === BOT_CHAIN.chainId) return;
+
+  try {
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: BOT_CHAIN.chainId }],
+    });
+  } catch (error: any) {
+    if (error.code === 4902) {
+      await window.ethereum.request({
+        method: "wallet_addEthereumChain",
+        params: [BOT_CHAIN],
+      });
+    } else {
+      throw error;
+    }
+  }
+}
+
 export async function getProvider() {
   if (!window.ethereum) {
     throw new Error("Please install MetaMask");
   }
 
+  if (provider) return provider;
+
   await window.ethereum.request({
     method: "eth_requestAccounts",
   });
 
-  const currentChain = await window.ethereum.request({
-    method: "eth_chainId",
-  });
+  await ensureChain();
 
-  if (currentChain !== BOT_CHAIN.chainId) {
-    try {
-      await window.ethereum.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: BOT_CHAIN.chainId }],
-      });
-    } catch (error: any) {
-      if (error.code === 4902) {
-        await window.ethereum.request({
-          method: "wallet_addEthereumChain",
-          params: [BOT_CHAIN],
-        });
-      } else {
-        throw error;
-      }
-    }
-  }
+  provider = new BrowserProvider(window.ethereum);
 
-  return new BrowserProvider(window.ethereum);
+  return provider;
 }
 
 export async function getSigner() {
-  const provider = await getProvider();
-  return provider.getSigner();
+  if (signer) return signer;
+
+  const p = await getProvider();
+  signer = await p.getSigner();
+
+  return signer;
 }
 
 export async function getWalletAddress() {
-  const signer = await getSigner();
-  return signer.getAddress();
+  const s = await getSigner();
+  return s.getAddress();
 }
 
 export async function getContract() {
-  const signer = await getSigner();
+  if (contract) return contract;
 
-  return new Contract(
-    CONTRACT_ADDRESS,
-    ABI,
-    signer
-  );
+  const s = await getSigner();
+
+  contract = new Contract(CONTRACT_ADDRESS, ABI, s);
+
+  return contract;
+}
+
+export function resetBlockchainCache() {
+  provider = null;
+  signer = null;
+  contract = null;
 }

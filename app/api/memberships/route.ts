@@ -28,15 +28,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json([]);
     }
 
-    const organization = await Organization.findOne({ slug });
+    // Ambil _id saja
+    const organization = await Organization.findOne(
+      { slug },
+      "_id"
+    ).lean();
 
     if (!organization) {
       return NextResponse.json([]);
     }
 
-    const members = await Membership.find({
-      organizationId: organization._id,
-    }).sort({ createdAt: 1 });
+    // Ambil field yang dipakai UI saja
+    const members = await Membership.find(
+      { organizationId: organization._id },
+      "name role walletAddress userId createdAt"
+    )
+      .sort({ createdAt: 1 })
+      .lean();
 
     return NextResponse.json(members);
   } catch (error) {

@@ -5,12 +5,19 @@ import User from "@/models/User";
 import { generateToken } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
+  console.time("LOGIN");
+
   try {
     await connectDB();
+    console.timeLog("LOGIN", "DB");
 
     const { email, password } = await req.json();
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email })
+      .select("_id name email role password")
+      .lean();
+
+    console.timeLog("LOGIN", "Find User");
 
     if (!user) {
       return NextResponse.json(
@@ -20,6 +27,8 @@ export async function POST(req: NextRequest) {
     }
 
     const valid = await bcrypt.compare(password, user.password);
+
+    console.timeLog("LOGIN", "Bcrypt");
 
     if (!valid) {
       return NextResponse.json(
@@ -33,6 +42,8 @@ export async function POST(req: NextRequest) {
       email: user.email,
       role: user.role,
     });
+
+    console.timeEnd("LOGIN");
 
     return NextResponse.json({
       token,

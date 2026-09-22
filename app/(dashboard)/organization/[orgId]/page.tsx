@@ -77,16 +77,24 @@ export default function OrganizationPage() {
   const [requests, setRequests] = useState<JoinRequest[]>([]);
 
   useEffect(() => {
-    if (orgId) fetchData();
+    if (!orgId) return;
+
+    fetchData();
+
+    const interval = setInterval(() => {
+      fetchData(false);
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, [orgId]);
 
-  async function fetchData() {
-    setLoading(true);
+  async function fetchData(showLoading = true) {
+    if (showLoading) setLoading(true);
 
     const token = localStorage.getItem("token");
 
     try {
-      const [orgRes, groupRes, memberRes, requestRes] =
+      const [orgRes, groupRes, memberRes, requestRes, profileRes] =
         await Promise.all([
           fetch(`/api/organizations/${orgId}`, {
             headers: {
@@ -111,28 +119,31 @@ export default function OrganizationPage() {
           fetch(`/api/groups/join-requests?organization=${orgId}`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
+          fetch("/api/profile", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
         ]);
 
-      const orgData = await orgRes.json();
-      const groupData = await groupRes.json();
-      const memberData = await memberRes.json();
-      const requestData = await requestRes.json();
+      const [orgData, groupData, memberData, requestData, profile] =
+        await Promise.all([
+          orgRes.json(),
+          groupRes.json(),
+          memberRes.json(),
+          requestRes.json(),
+          profileRes.json(),
+        ]);
 
       setOrg(orgData);
       setGroups(Array.isArray(groupData) ? groupData : []);
       const list = Array.isArray(memberData) ? memberData : [];
       setMembers(list);
       setRequests(Array.isArray(requestData) ? requestData : []);
-      const profileRes = await fetch("/api/profile", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const profile = await profileRes.json();
       const me = list.find((m: Member) => m.name === profile.name);
       if (me) setMyRole(me.role);
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }
 

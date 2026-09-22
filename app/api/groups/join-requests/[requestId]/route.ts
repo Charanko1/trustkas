@@ -13,9 +13,6 @@ export async function PATCH(
   try {
     await connectDB();
 
-    // =======================
-    // AUTH
-    // =======================
     const token = req.headers
       .get("authorization")
       ?.replace("Bearer ", "");
@@ -29,12 +26,8 @@ export async function PATCH(
 
     const payload = verifyToken(token) as { id: string };
     const { requestId } = await params;
+    const { action } = await req.json();
 
-    const { action } = await req.json(); // "Approved" | "Rejected"
-
-    // =======================
-    // REQUEST
-    // =======================
     const request = await GroupJoinRequest.findById(requestId);
 
     if (!request) {
@@ -44,9 +37,6 @@ export async function PATCH(
       );
     }
 
-    // =======================
-    // GROUP
-    // =======================
     const group = await Group.findById(request.groupId);
 
     if (!group) {
@@ -56,9 +46,7 @@ export async function PATCH(
       );
     }
 
-    // =======================
-    // ONLY LEADER
-    // =======================
+    // Hanya leader group
     if (group.leaderId.toString() !== payload.id) {
       return NextResponse.json(
         { message: "Only leader can approve requests" },
@@ -66,9 +54,7 @@ export async function PATCH(
       );
     }
 
-    // =======================
-    // REJECT
-    // =======================
+    // Reject
     if (action === "Rejected") {
       request.status = "Rejected";
       await request.save();
@@ -78,9 +64,7 @@ export async function PATCH(
       });
     }
 
-    // =======================
-    // APPROVE
-    // =======================
+    // Approve
     const exist = await GroupMember.findOne({
       groupId: group._id,
       membershipId: request.membershipId,
@@ -96,6 +80,14 @@ export async function PATCH(
 
     request.status = "Approved";
     await request.save();
+
+    // Sinkron jumlah member
+    const total = await GroupMember.countDocuments({
+      groupId: group._id,
+    });
+
+    group.members = total;
+    await group.save();
 
     return NextResponse.json({
       message: "Member approved successfully",

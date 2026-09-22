@@ -3,7 +3,6 @@ import { connectDB } from "@/lib/mongodb";
 import { verifyToken } from "@/lib/auth";
 
 import Membership from "@/models/Membership";
-import Group from "@/models/Group";
 import GroupJoinRequest from "@/models/GroupJoinRequest";
 
 export async function GET(req: NextRequest) {
@@ -27,50 +26,81 @@ export async function GET(req: NextRequest) {
     const payload = verifyToken(token) as { id: string };
 
     // =======================
-    // LEADER ORGANIZATIONS
+    // ORGANIZATION YANG DIPIMPIN
     // =======================
-    const adminMemberships = await Membership.find({
-      userId: payload.id,
-      role: "Admin",
-    });
+    const adminMemberships = await Membership.find(
+      {
+        userId: payload.id,
+        role: "Admin",
+      },
+      "organizationId"
+    ).lean();
 
     const organizationIds = adminMemberships.map(
-      (m) => m.organizationId
+      (m: any) => m.organizationId
     );
 
-    // =======================
-    // GROUPS
-    // =======================
-    const groups = await Group.find({
-      organizationId: { $in: organizationIds },
-    });
-
-    const groupIds = groups.map((g) => g._id);
+    if (organizationIds.length === 0) {
+      return NextResponse.json([]);
+    }
 
     // =======================
-    // PENDING REQUESTS
+    // AGGREGATION (1 QUERY)
     // =======================
-    const requests = await GroupJoinRequest.find({
-      groupId: { $in: groupIds },
-      status: "Pending",
-    })
-      .populate("membershipId", "name walletAddress")
-      .populate("groupId", "name");
+    const requests = await GroupJoinRequest.aggregate([
+      {
+        $match: {
+          status: "Pending",
+        },
+      },
+      {
+        $lookup: {
+          from: "groups",
+          localField: "groupId",
+          foreignField: "_id",
+          as: "group",
+        },
+      },
+      {
+        $unwind: "$group",
+      },
+      {
+        $match: {
+          "group.organizationId": {
+            $in: organizationIds,
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "memberships",
+          localField: "membershipId",
+          foreignField: "_id",
+          as: "member",
+        },
+      },
+      {
+        $unwind: "$member",
+      },
+      {
+        $project: {
+          _id: 1,
+          membershipId: "$member._id",
+          memberName: "$member.name",
+          walletAddress: "$member.walletAddress",
+          groupId: "$group._id",
+          groupName: "$group.name",
+          createdAt: 1,
+        },
+      },
+      {
+        $sort: {
+          createdAt: -1,
+        },
+      },
+    ]);
 
-    const result = requests.map((req: any) => ({
-      _id: req._id,
-
-      membershipId: req.membershipId._id,
-      memberName: req.membershipId.name,
-      walletAddress: req.membershipId.walletAddress,
-
-      groupId: req.groupId._id,
-      groupName: req.groupId.name,
-
-      createdAt: req.createdAt,
-    }));
-
-    return NextResponse.json(result);
+    return NextResponse.json(requests);
   } catch (error) {
     console.error(error);
 

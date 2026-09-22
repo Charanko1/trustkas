@@ -26,7 +26,7 @@ export default function TreasuryBalance() {
       </p>
 
       <h1 className="text-3xl font-bold mt-2">
-        {balance} POL
+        {balance} BOT
       </h1>
     </div>
   );

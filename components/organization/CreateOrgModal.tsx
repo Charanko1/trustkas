@@ -33,7 +33,6 @@ export default function CreateOrgModal({
         .trim()
         .replace(/\s+/g, "-");
 
-      // ✅ API plural
       const res = await fetch("/api/organizations", {
         method: "POST",
         headers: {
@@ -55,12 +54,12 @@ export default function CreateOrgModal({
         throw new Error(data.message);
       }
 
+      // Reset form
       setName("");
       setDescription("");
-      onClose();
 
-      // refresh dashboard
-      window.location.reload();
+      // Tutup modal + refresh data dari Dashboard
+      onClose();
     } catch (err: any) {
       console.error(err);
       alert(err.message || "Failed to create organization");
@@ -70,8 +69,8 @@ export default function CreateOrgModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
-      <div className="bg-white w-full max-w-lg rounded-2xl p-6 space-y-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="w-full max-w-lg rounded-2xl bg-white p-6 space-y-5">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold">
             Create Organization
@@ -105,9 +104,7 @@ export default function CreateOrgModal({
 
           <textarea
             value={description}
-            onChange={(e) =>
-              setDescription(e.target.value)
-            }
+            onChange={(e) => setDescription(e.target.value)}
             placeholder="Student organization..."
             className="mt-2 h-28 w-full resize-none rounded-xl border p-3 outline-none focus:border-blue-600"
           />

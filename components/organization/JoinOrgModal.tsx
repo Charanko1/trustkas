@@ -35,7 +35,6 @@ export default function JoinOrgModal({
         }),
       });
 
-      // Aman kalau backend tidak mengirim JSON
       const data = await res.json().catch(() => ({
         message: "Server error",
       }));
@@ -46,13 +45,10 @@ export default function JoinOrgModal({
         );
       }
 
-      alert("Successfully joined organization!");
-
       setCode("");
-      onClose();
 
-      // Refresh dashboard
-      window.location.reload();
+      // Tutup modal + Dashboard akan refresh otomatis
+      onClose();
     } catch (err: any) {
       console.error(err);
       alert(
@@ -66,7 +62,6 @@ export default function JoinOrgModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 space-y-5">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold">
             Join Organization
@@ -80,7 +75,6 @@ export default function JoinOrgModal({
           </button>
         </div>
 
-        {/* Input */}
         <div>
           <label className="text-sm font-medium">
             Invitation Code
@@ -89,16 +83,13 @@ export default function JoinOrgModal({
           <input
             value={code}
             onChange={(e) =>
-              setCode(
-                e.target.value.toUpperCase()
-              )
+              setCode(e.target.value.toUpperCase())
             }
             placeholder="INFO-7X92KD"
             className="mt-2 w-full rounded-xl border p-3 uppercase outline-none focus:border-blue-600"
           />
         </div>
 
-        {/* Button */}
         <button
           onClick={handleJoin}
           disabled={loading}

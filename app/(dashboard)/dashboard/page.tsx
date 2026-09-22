@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Search, Users } from "lucide-react";
@@ -28,28 +28,13 @@ export default function Dashboard() {
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      router.replace("/login");
-      return;
-    }
-
-    fetchOrganizations();
-  }, []);
-
-  async function fetchOrganizations() {
-    setLoading(true);
-
+  const fetchOrganizations = useCallback(async (token: string) => {
     try {
-      const token = localStorage.getItem("token");
-
       const res = await fetch("/api/organizations", {
-        method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        cache: "no-store",
       });
 
       if (!res.ok) {
@@ -65,7 +50,25 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    fetchOrganizations(token);
+
+    // realtime polling tiap 3 detik
+    const interval = setInterval(() => {
+      fetchOrganizations(token);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [router, fetchOrganizations]);
 
   const filteredOrganizations = organizations.filter((org) =>
     org.name.toLowerCase().includes(search.toLowerCase())
@@ -77,7 +80,8 @@ export default function Dashboard() {
         open={createOpen}
         onClose={() => {
           setCreateOpen(false);
-          fetchOrganizations();
+          const token = localStorage.getItem("token");
+          if (token) fetchOrganizations(token);
         }}
       />
 
@@ -85,12 +89,12 @@ export default function Dashboard() {
         open={joinOpen}
         onClose={() => {
           setJoinOpen(false);
-          fetchOrganizations();
+          const token = localStorage.getItem("token");
+          if (token) fetchOrganizations(token);
         }}
       />
 
       <div className="space-y-8">
-        {/* Header */}
         <div>
           <h1 className="text-3xl font-bold">My Organizations</h1>
           <p className="text-gray-500">
@@ -98,10 +102,8 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* Search */}
         <div className="bg-white rounded-xl border p-4 flex items-center gap-3">
           <Search className="text-gray-400" size={20} />
-
           <input
             placeholder="Search organization..."
             value={search}
@@ -110,18 +112,15 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Action */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <button
             onClick={() => setCreateOpen(true)}
             className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl p-6 text-left transition"
           >
             <Plus size={30} />
-
             <h2 className="text-xl font-bold mt-4">
               Create Organization
             </h2>
-
             <p className="text-blue-100 mt-1">
               Build your own workspace
             </p>
@@ -132,40 +131,42 @@ export default function Dashboard() {
             className="bg-white border hover:border-blue-500 rounded-xl p-6 text-left transition"
           >
             <Users size={30} className="text-blue-600" />
-
             <h2 className="text-xl font-bold mt-4">
               Join Organization
             </h2>
-
             <p className="text-gray-500 mt-1">
               Enter invitation code
             </p>
           </button>
         </div>
 
-        {/* Organizations */}
         <div>
           <h2 className="text-xl font-semibold mb-4">
             Your Organizations
           </h2>
 
           {loading ? (
-            <div className="text-center py-10 text-gray-500">
-              Loading organizations...
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {[1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="bg-white border rounded-xl p-5 animate-pulse"
+                >
+                  <div className="h-5 w-40 bg-gray-200 rounded mb-3" />
+                  <div className="h-3 w-24 bg-gray-200 rounded mb-6" />
+                  <div className="h-3 w-full bg-gray-100 rounded mb-2" />
+                  <div className="h-3 w-2/3 bg-gray-100 rounded" />
+                </div>
+              ))}
             </div>
           ) : filteredOrganizations.length === 0 ? (
             <div className="bg-white border rounded-xl p-10 text-center">
-              <Users
-                size={42}
-                className="mx-auto text-gray-300"
-              />
-
+              <Users size={42} className="mx-auto text-gray-300" />
               <h3 className="mt-4 text-lg font-semibold">
                 No Organizations
               </h3>
-
               <p className="text-gray-500 mt-2">
-                Create your first organization or join one using an invitation code.
+                Create your first organization or join one.
               </p>
             </div>
           ) : (
@@ -175,14 +176,13 @@ export default function Dashboard() {
                   key={org._id}
                   href={`/organization/${org.slug}`}
                 >
-                  <div className="bg-white border rounded-xl p-5 hover:shadow-lg transition cursor-pointer">
-                    <div className="flex justify-between items-start">
+                  <div className="bg-white border rounded-xl p-5 hover:shadow-lg transition">
+                    <div className="flex justify-between">
                       <div>
                         <h3 className="font-bold text-lg">
                           {org.name}
                         </h3>
-
-                        <p className="text-sm text-gray-500 mt-1">
+                        <p className="text-sm text-gray-500">
                           {org.members} Members
                         </p>
                       </div>
@@ -192,15 +192,12 @@ export default function Dashboard() {
                       </span>
                     </div>
 
-                    <p className="text-gray-500 text-sm mt-4 line-clamp-2">
+                    <p className="text-sm text-gray-500 mt-4 line-clamp-2">
                       {org.description}
                     </p>
 
-                    <div className="mt-5 pt-4 border-t flex justify-between items-center">
-                      <span className="text-gray-500">
-                        Treasury
-                      </span>
-
+                    <div className="mt-5 pt-4 border-t flex justify-between">
+                      <span>Treasury</span>
                       <span className="font-bold text-green-600">
                         {org.treasury} ETH
                       </span>

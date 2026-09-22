@@ -24,7 +24,7 @@ async function generateUniqueSlug(baseSlug: string) {
   let slug = baseSlug;
   let count = 1;
 
-  while (await Organization.findOne({ slug })) {
+  while (await Organization.findOne({ slug }).lean()) {
     slug = `${baseSlug}-${count}`;
     count++;
   }
@@ -39,46 +39,56 @@ export async function GET(req: NextRequest) {
   try {
     await connectDB();
 
-    const token = req.headers
-      .get("authorization")
-      ?.replace("Bearer ", "");
+    const auth = req.headers.get("authorization");
 
-    if (!token) {
+    if (!auth?.startsWith("Bearer ")) {
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
     }
 
-    const payload = verifyToken(token) as { id: string };
+    const payload = verifyToken(auth.slice(7)) as {
+      id: string;
+    };
 
-    const memberships = await Membership.find({
-      userId: payload.id,
-    });
+    // 1 QUERY SAJA
+    const organizations = await Membership.aggregate([
+      {
+        $match: {
+          userId: payload.id,
+        },
+      },
+      {
+        $lookup: {
+          from: "organizations",
+          localField: "organizationId",
+          foreignField: "_id",
+          as: "organization",
+        },
+      },
+      {
+        $unwind: "$organization",
+      },
+      {
+        $project: {
+          _id: "$organization._id",
+          name: "$organization.name",
+          slug: "$organization.slug",
+          description: "$organization.description",
+          treasury: "$organization.treasury",
+          members: {
+            $size: "$organization.members",
+          },
+          owner: "$organization.owner",
+          code: "$organization.code",
+        },
+      },
+    ]);
 
-    const organizationIds = memberships.map(
-      (m) => m.organizationId
-    );
-
-    const organizations = await Organization.find({
-      _id: { $in: organizationIds },
-    });
-
-    const result = organizations.map((org) => ({
-      _id: org._id,
-      name: org.name,
-      slug: org.slug,
-      description: org.description,
-      treasury: org.treasury,
-      members: Array.isArray(org.members)
-        ? org.members.length
-        : 0,
-      code: org.code,
-    }));
-
-    return NextResponse.json(result);
+    return NextResponse.json(organizations);
   } catch (error) {
-    console.error(error);
+    console.error("GET ORGANIZATIONS:", error);
 
     return NextResponse.json(
       { message: "Internal Server Error" },
@@ -94,20 +104,20 @@ export async function POST(req: NextRequest) {
   try {
     await connectDB();
 
-    const token = req.headers
-      .get("authorization")
-      ?.replace("Bearer ", "");
+    const auth = req.headers.get("authorization");
 
-    if (!token) {
+    if (!auth?.startsWith("Bearer ")) {
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
     }
 
-    const payload = verifyToken(token) as { id: string };
+    const payload = verifyToken(auth.slice(7)) as {
+      id: string;
+    };
 
-    const currentUser = await User.findById(payload.id);
+    const currentUser = await User.findById(payload.id).lean();
 
     if (!currentUser) {
       return NextResponse.json(
@@ -153,12 +163,10 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error: any) {
-    console.error(error);
+    console.error("CREATE ORGANIZATION:", error);
 
     return NextResponse.json(
-      {
-        message: error.message,
-      },
+      { message: error.message },
       { status: 500 }
     );
   }

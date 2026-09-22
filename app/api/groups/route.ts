@@ -22,7 +22,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json([]);
     }
 
-    // ambil user dari token (optional)
+    const organization = await Organization.findOne(
+      { slug: organizationSlug },
+      "_id"
+    ).lean();
+
+    if (!organization) {
+      return NextResponse.json([]);
+    }
+
     const token = req.headers
       .get("authorization")
       ?.replace("Bearer ", "");
@@ -32,66 +40,86 @@ export async function GET(req: NextRequest) {
     if (token) {
       const payload = verifyToken(token) as { id: string };
 
-      const organization = await Organization.findOne({
-        slug: organizationSlug,
-      });
-
-      if (organization) {
-        membership = await Membership.findOne({
+      membership = await Membership.findOne(
+        {
           organizationId: organization._id,
           userId: payload.id,
-        });
-      }
+        },
+        "_id role"
+      ).lean();
     }
 
-    const groups = await Group.find({
-      organizationSlug,
-    }).sort({ createdAt: -1 });
+    const groups = await Group.find(
+      { organizationSlug },
+      "name description leader organizationId organizationSlug organizationName createdAt"
+    )
+      .sort({ createdAt: -1 })
+      .lean();
 
-    const result = await Promise.all(
-      groups.map(async (group) => {
-        const memberCount = await GroupMember.countDocuments({
-          groupId: group._id,
-        });
+    const groupIds = groups.map((g: any) => g._id);
 
-        let joined = false;
-        let pending = false;
+    const memberCounts = await GroupMember.aggregate([
+      {
+        $match: {
+          groupId: { $in: groupIds },
+        },
+      },
+      {
+        $group: {
+          _id: "$groupId",
+          total: { $sum: 1 },
+        },
+      },
+    ]);
 
-        if (membership) {
-          const member = await GroupMember.findOne({
-            groupId: group._id,
-            membershipId: membership._id,
-          });
-
-          joined = !!member;
-
-          if (!joined) {
-            const request = await GroupJoinRequest.findOne({
-              groupId: group._id,
-              membershipId: membership._id,
-              status: "Pending",
-            });
-
-            pending = !!request;
-          }
-        }
-
-        return {
-          _id: group._id,
-          name: group.name,
-          description: group.description,
-          leader: group.leader,
-          members: memberCount,
-
-          organizationId: group.organizationId,
-          organizationSlug: group.organizationSlug,
-          organizationName: group.organizationName,
-
-          joined,
-          pending,
-        };
-      })
+    const countMap = new Map(
+      memberCounts.map((m: any) => [String(m._id), m.total])
     );
+
+    let joinedSet = new Set<string>();
+    let pendingSet = new Set<string>();
+
+    if (membership) {
+      const joined = await GroupMember.find(
+        {
+          membershipId: membership._id,
+          groupId: { $in: groupIds },
+        },
+        "groupId"
+      ).lean();
+
+      joinedSet = new Set(
+        joined.map((j: any) => String(j.groupId))
+      );
+
+      const pending = await GroupJoinRequest.find(
+        {
+          membershipId: membership._id,
+          status: "Pending",
+          groupId: { $in: groupIds },
+        },
+        "groupId"
+      ).lean();
+
+      pendingSet = new Set(
+        pending.map((p: any) => String(p.groupId))
+      );
+    }
+
+    const result = groups.map((group: any) => ({
+      _id: group._id,
+      name: group.name,
+      description: group.description,
+      leader: group.leader,
+      members: countMap.get(String(group._id)) ?? 0,
+
+      organizationId: group.organizationId,
+      organizationSlug: group.organizationSlug,
+      organizationName: group.organizationName,
+
+      joined: joinedSet.has(String(group._id)),
+      pending: pendingSet.has(String(group._id)),
+    }));
 
     return NextResponse.json(result);
   } catch (error) {
@@ -136,7 +164,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // hanya leader
     if (organization.owner.toString() !== payload.id) {
       return NextResponse.json(
         { message: "Only leader can create groups" },
@@ -160,16 +187,13 @@ export async function POST(req: NextRequest) {
     const group = await Group.create({
       name: body.name,
       description: body.description,
-
       organizationId: organization._id,
       organizationSlug: organization.slug,
       organizationName: organization.name,
-
       leader: leader.name,
       leaderId: payload.id,
     });
 
-    // leader otomatis jadi anggota group
     await GroupMember.create({
       groupId: group._id,
       membershipId: leader._id,
