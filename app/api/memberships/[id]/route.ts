@@ -5,6 +5,8 @@ import { verifyToken } from "@/lib/auth";
 import Membership from "@/models/Membership";
 import History from "@/models/History";
 import Organization from "@/models/Organization";
+import Group from "@/models/Group";
+import GroupMember from "@/models/GroupMember";
 
 // =======================
 // SET VALIDATOR
@@ -131,8 +133,34 @@ export async function DELETE(
       );
     }
 
+    // =======================
+    // HAPUS DARI SEMUA GROUP
+    // =======================
+    const affectedGroups = await GroupMember.find({
+      membershipId: target._id,
+    }).select("groupId");
+
+    await GroupMember.deleteMany({
+      membershipId: target._id,
+    });
+
+    // Sinkron jumlah member tiap group
+    for (const item of affectedGroups) {
+      const totalMember = await GroupMember.countDocuments({
+        groupId: item.groupId,
+      });
+
+      await Group.findByIdAndUpdate(item.groupId, {
+        members: totalMember,
+      });
+    }
+
+    // =======================
+    // HAPUS MEMBERSHIP
+    // =======================
     await Membership.findByIdAndDelete(id);
 
+    // Hapus relasi di Organization
     await Organization.findByIdAndUpdate(
       target.organizationId,
       {
@@ -142,6 +170,9 @@ export async function DELETE(
       }
     );
 
+    // =======================
+    // HISTORY
+    // =======================
     await History.create({
       organizationId: target.organizationId,
       userId: payload.id,

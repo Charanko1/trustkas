@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import CreateGroupModal from "@/components/group/CreateGroupModal";
+import JoinRequestModal from "@/components/group/JoinRequestModal";
 
 interface Organization {
   _id: string;
@@ -34,6 +35,9 @@ interface Group {
   description: string;
   leader: string;
   members: number;
+
+  joined: boolean;
+  pending: boolean;
 }
 
 interface Member {
@@ -41,6 +45,17 @@ interface Member {
   name: string;
   walletAddress: string;
   role: "Admin" | "Member" | "Validator";
+}
+
+
+interface JoinRequest {
+  _id: string;
+  membershipId: string;
+  groupId: string;
+  groupName: string;
+  memberName: string;
+  walletAddress?: string;
+  createdAt: string;
 }
 
 export default function OrganizationPage() {
@@ -58,6 +73,8 @@ export default function OrganizationPage() {
   const [copied, setCopied] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [myRole, setMyRole] = useState<"Admin" | "Member" | "Validator">("Member");
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [requests, setRequests] = useState<JoinRequest[]>([]);
 
   useEffect(() => {
     if (orgId) fetchData();
@@ -69,7 +86,7 @@ export default function OrganizationPage() {
     const token = localStorage.getItem("token");
 
     try {
-      const [orgRes, groupRes, memberRes] =
+      const [orgRes, groupRes, memberRes, requestRes] =
         await Promise.all([
           fetch(`/api/organizations/${orgId}`, {
             headers: {
@@ -91,16 +108,21 @@ export default function OrganizationPage() {
               },
             }
           ),
+          fetch(`/api/groups/join-requests?organization=${orgId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
         ]);
 
       const orgData = await orgRes.json();
       const groupData = await groupRes.json();
       const memberData = await memberRes.json();
+      const requestData = await requestRes.json();
 
       setOrg(orgData);
       setGroups(Array.isArray(groupData) ? groupData : []);
       const list = Array.isArray(memberData) ? memberData : [];
       setMembers(list);
+      setRequests(Array.isArray(requestData) ? requestData : []);
       const profileRes = await fetch("/api/profile", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -147,6 +169,25 @@ export default function OrganizationPage() {
     fetchData();
   }
 
+  async function requestJoin(groupId: string) {
+  const token = localStorage.getItem("token");
+
+  const res = await fetch(`/api/groups/${groupId}/join`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await res.json();
+
+  alert(data.message);
+
+  if (res.ok) {
+    fetchData();
+  }
+}
+
   async function setValidator(id: string) {
     const token = localStorage.getItem("token");
 
@@ -187,6 +228,47 @@ export default function OrganizationPage() {
     }
   }
 
+
+  async function approveRequest(id: string) {
+    const token = localStorage.getItem("token");
+
+    const res = await fetch(`/api/groups/join-requests/${id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        action: "Approved",
+      }),
+    });
+
+    const data = await res.json();
+    alert(data.message);
+
+    if (res.ok) fetchData();
+  }
+
+  async function rejectRequest(id: string) {
+    const token = localStorage.getItem("token");
+
+    const res = await fetch(`/api/groups/join-requests/${id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        action: "Rejected",
+      }),
+    });
+
+    const data = await res.json();
+    alert(data.message);
+
+    if (res.ok) fetchData();
+  }
+
   async function exitOrganization() {
     const token = localStorage.getItem("token");
     const res = await fetch("/api/organizations/exit", {
@@ -224,6 +306,14 @@ export default function OrganizationPage() {
 
   return (
     <>
+      <JoinRequestModal
+        open={requestOpen}
+        onClose={() => setRequestOpen(false)}
+        requests={requests}
+        onApprove={approveRequest}
+        onReject={rejectRequest}
+      />
+
       <CreateGroupModal
         open={groupOpen}
         onClose={() => setGroupOpen(false)}
@@ -385,7 +475,7 @@ export default function OrganizationPage() {
                     Leader
                   </span>
                 ) : member.role === "Validator" ? (
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 items-center">
                     <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm">
                       Validator
                     </span>
@@ -393,85 +483,81 @@ export default function OrganizationPage() {
                     {myRole === "Admin" && (
                       <button
                         onClick={() => removeMember(member._id)}
-                        className="bg-red-100 text-red-600 px-3 py-1 rounded-lg text-sm hover:bg-red-200 transition"
+                        className="text-red-500 hover:text-red-700"
                       >
-                        Remove
+                        <Trash2 size={18} />
                       </button>
                     )}
                   </div>
                 ) : (
-                  <div className="flex gap-2">
-                    {myRole === "Admin" ? (
-                      <>
-                        <button
-                          onClick={() => setValidator(member._id)}
-                          className="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition"
-                        >
-                          Set Validator
-                        </button>
+                  <div className="flex gap-2 items-center">
+                    <button
+                      onClick={() => setValidator(member._id)}
+                      className="px-3 py-1 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700"
+                    >
+                      Set Validator
+                    </button>
 
-                        <button
-                          onClick={() => removeMember(member._id)}
-                          className="bg-red-100 text-red-600 px-3 py-1 rounded-lg text-sm hover:bg-red-200 transition"
-                        >
-                          Remove
-                        </button>
-                      </>
-                    ) : (
-                      <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-sm">
-                        Member
-                      </span>
+                    {myRole === "Admin" && (
+                      <button
+                        onClick={() => removeMember(member._id)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 size={18} />
+                      </button>
                     )}
                   </div>
                 )}
               </div>
             ))}
-
-            {members.length === 0 && (
-              <div className="py-8 text-center text-gray-500">
-                No members found.
-              </div>
-            )}
           </div>
-        </div>
-
-        {/* ================= GROUP HEADER ================= */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-bold">
-              Organization Groups
-            </h2>
-
-            <p className="text-gray-500">
-              Manage proposal groups
-            </p>
-          </div>
-
-          {myRole === "Admin" && (
-            <button
-              onClick={() => setGroupOpen(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition"
-            >
-              <Plus size={18} />
-              Create Group
-            </button>
-          )}
         </div>
 
         {/* ================= GROUP LIST ================= */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {groups.map((group) => (
-            <Link
-              key={group._id}
-              href={`/organization/${org.slug}/groups/${group._id}`}
-            >
-              <div className="bg-white border rounded-xl p-5 hover:shadow-lg transition">
+        <div className="bg-white rounded-2xl border p-6">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold">Organization Groups</h2>
+              <p className="text-gray-500">
+                Every member can view groups. Only approved members can enter.
+              </p>
+            </div>
+
+            {myRole === "Admin" && (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setRequestOpen(true)}
+                  className="border px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+                >
+                  <Users size={18} />
+                  Join Requests
+                  {requests.length > 0 && (
+                    <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5">
+                      {requests.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setGroupOpen(true)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition"
+                >
+                  <Plus size={18} />
+                  Create Group
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {groups.map((group) => (
+              <div
+                key={group._id}
+                className="bg-white border rounded-xl p-5 hover:shadow-lg transition"
+              >
                 <div className="flex justify-between">
                   <div>
-                    <h3 className="font-bold text-lg">
-                      {group.name}
-                    </h3>
-
+                    <h3 className="font-bold text-lg">{group.name}</h3>
                     <p className="text-sm text-gray-500 mt-1">
                       Leader: {group.leader}
                     </p>
@@ -481,17 +567,36 @@ export default function OrganizationPage() {
                 </div>
 
                 <div className="mt-6 pt-4 border-t flex justify-between text-sm">
-                  <span className="text-gray-500">
-                    Members
-                  </span>
+                  <span className="text-gray-500">Members</span>
+                  <span className="font-semibold">{group.members}</span>
+                </div>
 
-                  <span className="font-semibold">
-                    {group.members}
-                  </span>
+                <div className="mt-4">
+                  {myRole === "Admin" || group.joined ? (
+                    <Link href={`/organization/${org.slug}/groups/${group._id}`}>
+                      <button className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
+                        Open Group
+                      </button>
+                    </Link>
+                  ) : group.pending ? (
+                    <button
+                      disabled
+                      className="w-full py-2 rounded-lg bg-yellow-100 text-yellow-700 cursor-not-allowed"
+                    >
+                      Waiting Approval
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => requestJoin(group._id)}
+                      className="w-full py-2 rounded-lg border border-blue-600 text-blue-600 hover:bg-blue-50"
+                    >
+                      Request Join
+                    </button>
+                  )}
                 </div>
               </div>
-            </Link>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </>

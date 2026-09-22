@@ -5,22 +5,95 @@ import { verifyToken } from "@/lib/auth";
 import Group from "@/models/Group";
 import Organization from "@/models/Organization";
 import Membership from "@/models/Membership";
+import GroupMember from "@/models/GroupMember";
+import GroupJoinRequest from "@/models/GroupJoinRequest";
 
 // =======================
-// GET GROUPS
+// GET GROUPS BY ORGANIZATION
 // =======================
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
 
     const { searchParams } = new URL(req.url);
-    const organization = searchParams.get("organization");
+    const organizationSlug = searchParams.get("organization");
+
+    if (!organizationSlug) {
+      return NextResponse.json([]);
+    }
+
+    // ambil user dari token (optional)
+    const token = req.headers
+      .get("authorization")
+      ?.replace("Bearer ", "");
+
+    let membership: any = null;
+
+    if (token) {
+      const payload = verifyToken(token) as { id: string };
+
+      const organization = await Organization.findOne({
+        slug: organizationSlug,
+      });
+
+      if (organization) {
+        membership = await Membership.findOne({
+          organizationId: organization._id,
+          userId: payload.id,
+        });
+      }
+    }
 
     const groups = await Group.find({
-      organizationSlug: organization,
-    });
+      organizationSlug,
+    }).sort({ createdAt: -1 });
 
-    return NextResponse.json(groups);
+    const result = await Promise.all(
+      groups.map(async (group) => {
+        const memberCount = await GroupMember.countDocuments({
+          groupId: group._id,
+        });
+
+        let joined = false;
+        let pending = false;
+
+        if (membership) {
+          const member = await GroupMember.findOne({
+            groupId: group._id,
+            membershipId: membership._id,
+          });
+
+          joined = !!member;
+
+          if (!joined) {
+            const request = await GroupJoinRequest.findOne({
+              groupId: group._id,
+              membershipId: membership._id,
+              status: "Pending",
+            });
+
+            pending = !!request;
+          }
+        }
+
+        return {
+          _id: group._id,
+          name: group.name,
+          description: group.description,
+          leader: group.leader,
+          members: memberCount,
+
+          organizationId: group.organizationId,
+          organizationSlug: group.organizationSlug,
+          organizationName: group.organizationName,
+
+          joined,
+          pending,
+        };
+      })
+    );
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error(error);
 
@@ -52,7 +125,6 @@ export async function POST(req: NextRequest) {
     const payload = verifyToken(token) as { id: string };
     const body = await req.json();
 
-    // Cari organisasi
     const organization = await Organization.findOne({
       slug: body.organizationSlug,
     });
@@ -64,9 +136,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // =======================
-    // CEK LEADER (FIX)
-    // =======================
+    // hanya leader
     if (organization.owner.toString() !== payload.id) {
       return NextResponse.json(
         { message: "Only leader can create groups" },
@@ -74,19 +144,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Ambil nama leader
     const leader = await Membership.findOne({
       organizationId: organization._id,
       userId: payload.id,
       role: "Admin",
     });
 
+    if (!leader) {
+      return NextResponse.json(
+        { message: "Leader not found" },
+        { status: 404 }
+      );
+    }
+
     const group = await Group.create({
       name: body.name,
       description: body.description,
-      organizationSlug: body.organizationSlug,
-      leader: leader?.name || "Leader",
-      members: 1,
+
+      organizationId: organization._id,
+      organizationSlug: organization.slug,
+      organizationName: organization.name,
+
+      leader: leader.name,
+      leaderId: payload.id,
+    });
+
+    // leader otomatis jadi anggota group
+    await GroupMember.create({
+      groupId: group._id,
+      membershipId: leader._id,
+      role: "Admin",
     });
 
     return NextResponse.json(group, {

@@ -7,9 +7,21 @@ import { CheckCircle, Plus, Users } from "lucide-react";
 import CreateProposalModal from "@/components/proposal/CreateProposalModal";
 
 interface Member {
-  id: number;
+  _id: string;
   name: string;
   role: string;
+  walletAddress?: string;
+}
+
+interface GroupData {
+  _id: string;
+  name: string;
+  description: string;
+  leader: string;
+  organizationName: string;
+  members: number;
+  totalProposal: number;
+  isLeader: boolean;
 }
 
 interface Proposal {
@@ -24,12 +36,6 @@ interface Proposal {
   approvedAt?: string;
 }
 
-const members: Member[] = [
-  { id: 1, name: "Ridwan Aziz", role: "Leader" },
-  { id: 2, name: "Rina", role: "Member" },
-  { id: 3, name: "Dimas", role: "Member" },
-];
-
 export default function GroupPage() {
   const params = useParams();
 
@@ -39,28 +45,52 @@ export default function GroupPage() {
   const [tab, setTab] = useState("proposal");
   const [open, setOpen] = useState(false);
 
+  const [group, setGroup] = useState<GroupData | null>(null);
   const [loading, setLoading] = useState(true);
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
 
-  // sementara hardcode
-  const currentRole: "Admin" | "Validator" | "Member" =
-    "Validator";
+  const [currentRole, setCurrentRole] = useState<"Admin" | "Member">("Member");
 
   useEffect(() => {
-    fetchProposals();
+    fetchData();
   }, [groupId]);
 
-  async function fetchProposals() {
-    try {
-      const res = await fetch(`/api/proposals?group=${groupId}`);
-      const data = await res.json();
-      setProposals(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+  async function fetchData() {
+  try {
+    setLoading(true);
+
+    const token = localStorage.getItem("token");
+
+    const [groupRes, proposalRes, memberRes] = await Promise.all([
+      fetch(`/api/groups/${groupId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }),
+      fetch(`/api/proposals?group=${groupId}`),
+      fetch(`/api/groups/${groupId}/members`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }),
+    ]);
+
+    const groupData = await groupRes.json();
+    const proposalData = await proposalRes.json();
+    const memberData = await memberRes.json();
+
+    setGroup(groupData);
+    setCurrentRole(groupData.isLeader ? "Admin" : "Member");
+
+    setProposals(Array.isArray(proposalData) ? proposalData : []);
+    setMembers(Array.isArray(memberData) ? memberData : []);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setLoading(false);
   }
+}
 
   async function createProposal(proposal: {
     title: string;
@@ -83,7 +113,7 @@ export default function GroupPage() {
     });
 
     setOpen(false);
-    fetchProposals();
+    fetchData();
   }
 
   async function updateProposalStatus(
@@ -97,11 +127,11 @@ export default function GroupPage() {
       },
       body: JSON.stringify({
         status,
-        validator: "Ridwan Aziz",
+        validator: "{group?.leader}",
       }),
     });
 
-    fetchProposals();
+    fetchData();
   }
 
   return (
@@ -116,11 +146,11 @@ export default function GroupPage() {
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold">
-            Event Division
+            {group?.name}
           </h1>
 
           <p className="text-gray-500">
-            HIMA Informatika
+            {group?.organizationName}
           </p>
         </div>
 
@@ -269,7 +299,7 @@ export default function GroupPage() {
                         )}
 
                         {proposal.status === "Pending" &&
-                          currentRole === "Validator" && (
+                          currentRole === "Admin" && (
                             <>
                               <button
                                 onClick={() =>
@@ -308,43 +338,39 @@ export default function GroupPage() {
         {/* ================= MEMBERS ================= */}
         {tab === "members" && (
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold">
-                Group Members
-              </h2>
-
-              <button className="border px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50">
-                <Users size={18}/>
-                Add Member
-              </button>
-            </div>
-
-            {members.map((member) => (
-              <div
-                key={member.id}
-                className="bg-white border rounded-xl p-4 flex justify-between items-center"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
-                    {member.name.charAt(0)}
-                  </div>
-
-                  <div>
-                    <h3 className="font-semibold">
-                      {member.name}
-                    </h3>
-
-                    <p className="text-sm text-gray-500">
-                      {member.role}
-                    </p>
-                  </div>
-                </div>
-
-                {member.role === "Leader" && (
-                  <CheckCircle className="text-green-600"/>
-                )}
+            {members.length === 0 ? (
+              <div className="bg-white border rounded-xl p-8 text-center text-gray-500">
+                No members in this group.
               </div>
-            ))}
+            ) : (
+              members.map((member) => (
+                <div
+                  key={member._id}
+                  className="bg-white border rounded-xl p-4 flex justify-between items-center"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
+                      {member.name.charAt(0)}
+                    </div>
+
+                    <div>
+                      <h3 className="font-semibold">{member.name}</h3>
+                      <p className="text-sm text-gray-500">{member.role}</p>
+
+                      {member.walletAddress && (
+                        <p className="text-xs text-gray-400">
+                          {member.walletAddress}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {member.role === "Admin" && (
+                    <CheckCircle className="text-green-600" />
+                  )}
+                </div>
+              ))
+            )}
           </div>
         )}
 
@@ -356,7 +382,7 @@ export default function GroupPage() {
             </h2>
 
             <p className="text-gray-600">
-              Event Division manages seminars, workshops,
+              {group?.name} manages seminars, workshops,
               competitions, and every proposal related to
               organization events.
             </p>
@@ -366,28 +392,28 @@ export default function GroupPage() {
                 <span className="text-gray-500">
                   Leader
                 </span>
-                <span>Ridwan Aziz</span>
+                <span>{group?.leader}</span>
               </div>
 
               <div className="flex justify-between">
                 <span className="text-gray-500">
                   Members
                 </span>
-                <span>{members.length}</span>
+                <span>{group?.members ?? 0}</span>
               </div>
 
               <div className="flex justify-between">
                 <span className="text-gray-500">
                   Organization
                 </span>
-                <span>HIMA Informatika</span>
+                <span>{group?.organizationName}</span>
               </div>
 
               <div className="flex justify-between">
                 <span className="text-gray-500">
                   Total Proposal
                 </span>
-                <span>{proposals.length}</span>
+                <span>{group?.totalProposal ?? 0}</span>
               </div>
             </div>
           </div>

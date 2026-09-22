@@ -5,11 +5,10 @@ import { verifyToken } from "@/lib/auth";
 import Group from "@/models/Group";
 import Membership from "@/models/Membership";
 import GroupMember from "@/models/GroupMember";
-import Proposal from "@/models/Proposal";
 
-export async function GET(
+export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string; memberId: string }> }
 ) {
   try {
     await connectDB();
@@ -29,7 +28,7 @@ export async function GET(
     }
 
     const payload = verifyToken(token) as { id: string };
-    const { id } = await params;
+    const { id, memberId } = await params;
 
     // =======================
     // GROUP
@@ -44,66 +43,57 @@ export async function GET(
     }
 
     // =======================
-    // ORGANIZATION MEMBERSHIP
+    // ONLY LEADER
     // =======================
-    const membership = await Membership.findOne({
+    const leader = await Membership.findOne({
       organizationId: group.organizationId,
       userId: payload.id,
+      role: "Admin",
     });
 
-    if (!membership) {
+    if (!leader) {
       return NextResponse.json(
-        { message: "You are not an organization member" },
+        { message: "Only leader can remove members" },
         { status: 403 }
       );
     }
 
-    // =======================
-    // ONLY LEADER OR GROUP MEMBER
-    // =======================
-    const isLeader = membership.role === "Admin";
-
-    if (!isLeader) {
-      const groupMember = await GroupMember.findOne({
-        groupId: group._id,
-        membershipId: membership._id,
-      });
-
-      if (!groupMember) {
-        return NextResponse.json(
-          { message: "You haven't joined this group" },
-          { status: 403 }
-        );
-      }
+    // Tidak boleh menghapus diri sendiri
+    if (leader._id.toString() === memberId) {
+      return NextResponse.json(
+        { message: "Leader cannot remove themselves" },
+        { status: 400 }
+      );
     }
 
     // =======================
-    // STATISTICS
+    // REMOVE MEMBER
     // =======================
-    const [memberCount, proposalCount] = await Promise.all([
-      GroupMember.countDocuments({ groupId: group._id }),
-      Proposal.countDocuments({ groupId: group._id }),
-    ]);
+    const deleted = await GroupMember.findOneAndDelete({
+      groupId: id,
+      membershipId: memberId,
+    });
+
+    if (!deleted) {
+      return NextResponse.json(
+        { message: "Member not found in this group" },
+        { status: 404 }
+      );
+    }
 
     // =======================
-    // RESPONSE
+    // SYNC MEMBER COUNT
     // =======================
+    const totalMember = await GroupMember.countDocuments({
+      groupId: id,
+    });
+
+    group.members = totalMember;
+    await group.save();
+
     return NextResponse.json({
-      _id: group._id,
-      name: group.name,
-      description: group.description,
-
-      leader: group.leader,
-      leaderId: group.leaderId,
-
-      organizationId: group.organizationId,
-      organizationName: group.organizationName,
-      organizationSlug: group.organizationSlug,
-
-      members: memberCount,
-      totalProposal: proposalCount,
-
-      isLeader,
+      message: "Member removed successfully",
+      members: totalMember,
     });
   } catch (error) {
     console.error(error);
