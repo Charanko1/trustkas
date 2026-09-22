@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Mail, Shield, Wallet, User } from "lucide-react";
 
-interface Profile {
+import ProfileHero from "@/components/profile/ProfileHero";
+import ProfileInfo from "@/components/profile/ProfileInfo";
+
+export interface Profile {
   _id: string;
   name: string;
   email: string;
@@ -16,7 +18,6 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // tampilkan data localStorage dulu
     const cached = localStorage.getItem("user");
 
     if (cached) {
@@ -57,7 +58,6 @@ export default function ProfilePage() {
 
       setProfile(data);
 
-      // sinkron localStorage
       localStorage.setItem(
         "user",
         JSON.stringify({
@@ -93,66 +93,8 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white">
-        <div className="flex items-center gap-5">
-          <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-3xl font-bold">
-            {profile.name.charAt(0).toUpperCase()}
-          </div>
-
-          <div>
-            <h1 className="text-3xl font-bold">{profile.name}</h1>
-            <p className="text-blue-100 mt-1">{profile.email}</p>
-
-            <span className="inline-block mt-3 bg-white/20 px-3 py-1 rounded-full text-sm capitalize">
-              {profile.role}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl border p-6 space-y-5">
-        <h2 className="text-xl font-bold">
-          Account Information
-        </h2>
-
-        <div className="flex items-center gap-4">
-          <User className="text-blue-600" />
-          <div>
-            <p className="text-sm text-gray-500">Full Name</p>
-            <p className="font-semibold">{profile.name}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <Mail className="text-blue-600" />
-          <div>
-            <p className="text-sm text-gray-500">Email</p>
-            <p className="font-semibold">{profile.email}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <Shield className="text-blue-600" />
-          <div>
-            <p className="text-sm text-gray-500">Role</p>
-            <p className="font-semibold capitalize">
-              {profile.role}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <Wallet className="text-blue-600" />
-          <div className="min-w-0">
-            <p className="text-sm text-gray-500">
-              Wallet Address
-            </p>
-            <p className="font-mono text-sm break-all">
-              {profile.walletAddress || "Not Connected"}
-            </p>
-          </div>
-        </div>
-      </div>
+      <ProfileHero profile={profile} />
+      <ProfileInfo profile={profile} />
     </div>
   );
 }

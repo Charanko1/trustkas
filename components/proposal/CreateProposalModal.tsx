@@ -48,14 +48,11 @@ export default function CreateProposalModal({
   return (
     <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50">
       <div className="bg-white w-[560px] rounded-2xl p-6 space-y-4">
-
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">
-            New Proposal
-          </h2>
+          <h2 className="text-2xl font-bold">New Proposal</h2>
 
           <button onClick={onClose}>
-            <X/>
+            <X />
           </button>
         </div>
 
@@ -86,7 +83,6 @@ export default function CreateProposalModal({
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-
           <div>
             <label className="text-sm font-medium">
               Target (POL)
@@ -113,16 +109,14 @@ export default function CreateProposalModal({
               className="w-full border rounded-lg p-3 mt-2"
             />
           </div>
-
         </div>
 
         <button
           onClick={handleSubmit}
-          className="w-full bg-blue-600 text-white py-3 rounded-lg"
+          className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700"
         >
           Submit Proposal
         </button>
-
       </div>
     </div>
   );

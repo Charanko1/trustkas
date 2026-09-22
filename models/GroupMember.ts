@@ -16,7 +16,7 @@ const GroupMemberSchema = new Schema(
 
     role: {
       type: String,
-      enum: ["Leader", "Member"],
+      enum: ["Admin", "Member"], // ← ganti Leader jadi Admin
       default: "Member",
     },
   },
