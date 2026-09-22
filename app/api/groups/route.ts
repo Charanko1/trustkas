@@ -15,13 +15,14 @@ export async function GET(req: NextRequest) {
   try {
     await connectDB();
 
-    const { searchParams } = new URL(req.url);
-    const organizationSlug = searchParams.get("organization");
+    const organizationSlug =
+      req.nextUrl.searchParams.get("organization");
 
     if (!organizationSlug) {
       return NextResponse.json([]);
     }
 
+    // Cari organisasi
     const organization = await Organization.findOne(
       { slug: organizationSlug },
       "_id"
@@ -31,6 +32,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json([]);
     }
 
+    // Ambil membership user (jika login)
     const token = req.headers
       .get("authorization")
       ?.replace("Bearer ", "");
@@ -49,62 +51,76 @@ export async function GET(req: NextRequest) {
       ).lean();
     }
 
-    const groups = await Group.find(
-      { organizationSlug },
-      "name description leader organizationId organizationSlug organizationName createdAt"
-    )
-      .sort({ createdAt: -1 })
-      .lean();
+    // =======================
+    // PARALLEL QUERY
+    // =======================
+    const [groups, memberCounts, joined, pending] =
+      await Promise.all([
+        Group.find(
+          { organizationSlug },
+          "name description leader organizationId organizationSlug organizationName createdAt"
+        )
+          .sort({ createdAt: -1 })
+          .lean(),
 
-    const groupIds = groups.map((g: any) => g._id);
+        GroupMember.aggregate([
+          {
+            $lookup: {
+              from: "groups",
+              localField: "groupId",
+              foreignField: "_id",
+              as: "group",
+            },
+          },
+          { $unwind: "$group" },
+          {
+            $match: {
+              "group.organizationSlug": organizationSlug,
+            },
+          },
+          {
+            $group: {
+              _id: "$groupId",
+              total: { $sum: 1 },
+            },
+          },
+        ]),
 
-    const memberCounts = await GroupMember.aggregate([
-      {
-        $match: {
-          groupId: { $in: groupIds },
-        },
-      },
-      {
-        $group: {
-          _id: "$groupId",
-          total: { $sum: 1 },
-        },
-      },
-    ]);
+        membership
+          ? GroupMember.find(
+              { membershipId: membership._id },
+              "groupId"
+            ).lean()
+          : Promise.resolve([]),
 
+        membership
+          ? GroupJoinRequest.find(
+              {
+                membershipId: membership._id,
+                status: "Pending",
+              },
+              "groupId"
+            ).lean()
+          : Promise.resolve([]),
+      ]);
+
+    // =======================
+    // MAP DATA
+    // =======================
     const countMap = new Map(
-      memberCounts.map((m: any) => [String(m._id), m.total])
+      memberCounts.map((m: any) => [
+        String(m._id),
+        m.total,
+      ])
     );
 
-    let joinedSet = new Set<string>();
-    let pendingSet = new Set<string>();
+    const joinedSet = new Set(
+      (joined as any[]).map((j) => String(j.groupId))
+    );
 
-    if (membership) {
-      const joined = await GroupMember.find(
-        {
-          membershipId: membership._id,
-          groupId: { $in: groupIds },
-        },
-        "groupId"
-      ).lean();
-
-      joinedSet = new Set(
-        joined.map((j: any) => String(j.groupId))
-      );
-
-      const pending = await GroupJoinRequest.find(
-        {
-          membershipId: membership._id,
-          status: "Pending",
-          groupId: { $in: groupIds },
-        },
-        "groupId"
-      ).lean();
-
-      pendingSet = new Set(
-        pending.map((p: any) => String(p.groupId))
-      );
-    }
+    const pendingSet = new Set(
+      (pending as any[]).map((p) => String(p.groupId))
+    );
 
     const result = groups.map((group: any) => ({
       _id: group._id,
@@ -164,6 +180,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Hanya leader
     if (organization.owner.toString() !== payload.id) {
       return NextResponse.json(
         { message: "Only leader can create groups" },
@@ -187,13 +204,17 @@ export async function POST(req: NextRequest) {
     const group = await Group.create({
       name: body.name,
       description: body.description,
+
       organizationId: organization._id,
       organizationSlug: organization.slug,
       organizationName: organization.name,
+
       leader: leader.name,
       leaderId: payload.id,
+      members: 1,
     });
 
+    // Leader otomatis masuk group
     await GroupMember.create({
       groupId: group._id,
       membershipId: leader._id,

@@ -28,8 +28,15 @@ export default function Dashboard() {
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
 
-  const fetchOrganizations = useCallback(async (token: string) => {
+  const fetchOrganizations = useCallback(async () => {
     try {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
       const res = await fetch("/api/organizations", {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -38,37 +45,23 @@ export default function Dashboard() {
       });
 
       if (!res.ok) {
-        setOrganizations([]);
-        return;
+        throw new Error("Failed to fetch organizations");
       }
 
       const data = await res.json();
       setOrganizations(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error(err);
+      console.error("Organization Error:", err);
       setOrganizations([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
+  // Fetch hanya sekali saat halaman dibuka
   useEffect(() => {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      router.replace("/login");
-      return;
-    }
-
-    fetchOrganizations(token);
-
-    // realtime polling tiap 3 detik
-    const interval = setInterval(() => {
-      fetchOrganizations(token);
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [router, fetchOrganizations]);
+    fetchOrganizations();
+  }, [fetchOrganizations]);
 
   const filteredOrganizations = organizations.filter((org) =>
     org.name.toLowerCase().includes(search.toLowerCase())
@@ -80,8 +73,7 @@ export default function Dashboard() {
         open={createOpen}
         onClose={() => {
           setCreateOpen(false);
-          const token = localStorage.getItem("token");
-          if (token) fetchOrganizations(token);
+          fetchOrganizations();
         }}
       />
 
@@ -89,8 +81,7 @@ export default function Dashboard() {
         open={joinOpen}
         onClose={() => {
           setJoinOpen(false);
-          const token = localStorage.getItem("token");
-          if (token) fetchOrganizations(token);
+          fetchOrganizations();
         }}
       />
 
