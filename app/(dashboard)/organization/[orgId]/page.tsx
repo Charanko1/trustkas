@@ -78,66 +78,45 @@ export default function OrganizationPage() {
 
   useEffect(() => {
     if (!orgId) return;
-
     fetchData();
-
-    const interval = setInterval(() => {
-      fetchData(false);
-    }, 3000);
-
-    return () => clearInterval(interval);
   }, [orgId]);
 
   async function fetchData(showLoading = true) {
     if (showLoading) setLoading(true);
 
-    const token = localStorage.getItem("token");
-
     try {
-      const [orgRes, groupRes, memberRes, requestRes, profileRes] =
-        await Promise.all([
-          fetch(`/api/organizations/${orgId}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }),
+      const token = localStorage.getItem("token");
+      if (!token) return;
 
-          fetch(`/api/groups?organization=${orgId}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }),
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const headers = { Authorization: `Bearer ${token}` };
 
-          fetch(
-            `/api/memberships?organization=${orgId}`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            }
-          ),
-          fetch(`/api/groups/join-requests?organization=${orgId}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          fetch("/api/profile", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-        ]);
+      const requestPromise =
+        user.role === "Admin"
+          ? fetch(`/api/groups/join-requests?organization=${orgId}`, { headers })
+          : Promise.resolve(null);
 
-      const [orgData, groupData, memberData, requestData, profile] =
-        await Promise.all([
-          orgRes.json(),
-          groupRes.json(),
-          memberRes.json(),
-          requestRes.json(),
-          profileRes.json(),
-        ]);
+      const [orgRes, groupRes, memberRes, requestRes, profileRes] = await Promise.all([
+        fetch(`/api/organizations/${orgId}`, { headers }),
+        fetch(`/api/groups?organization=${orgId}`, { headers }),
+        fetch(`/api/memberships?organization=${orgId}`, { headers }),
+        requestPromise,
+        fetch("/api/profile", { headers }),
+      ]);
+
+      const orgData = await orgRes.json();
+      const groupData = await groupRes.json();
+      const memberData = await memberRes.json();
+      const profile = await profileRes.json();
+      const requestData = requestRes ? await requestRes.json() : [];
 
       setOrg(orgData);
       setGroups(Array.isArray(groupData) ? groupData : []);
+
       const list = Array.isArray(memberData) ? memberData : [];
       setMembers(list);
       setRequests(Array.isArray(requestData) ? requestData : []);
+
       const me = list.find((m: Member) => m.name === profile.name);
       if (me) setMyRole(me.role);
     } catch (err) {
