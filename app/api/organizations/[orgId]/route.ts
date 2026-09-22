@@ -7,9 +7,7 @@ import Membership from "@/models/Membership";
 import History from "@/models/History";
 import Group from "@/models/Group";
 
-// =======================
-// GET ORGANIZATION
-// =======================
+// ================= GET =================
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
@@ -19,11 +17,9 @@ export async function GET(
 
     const { orgId } = await params;
 
-    const organization = await Organization.findOne({
-      slug: orgId,
-    });
+    const org = await Organization.findOne({ slug: orgId }).lean();
 
-    if (!organization) {
+    if (!org) {
       return NextResponse.json(
         { message: "Organization not found" },
         { status: 404 }
@@ -31,18 +27,17 @@ export async function GET(
     }
 
     return NextResponse.json({
-      _id: organization._id,
-      name: organization.name,
-      slug: organization.slug,
-      description: organization.description,
-      treasury: organization.treasury,
-      members: organization.members.length,
-      owner: organization.owner,
-      code: organization.code,
+      _id: org._id,
+      name: org.name,
+      slug: org.slug,
+      description: org.description,
+      treasury: org.treasury,
+      members: org.members.length,
+      owner: org.owner,
+      code: org.code,
     });
-  } catch (error) {
-    console.error(error);
-
+  } catch (err) {
+    console.error(err);
     return NextResponse.json(
       { message: "Internal Server Error" },
       { status: 500 }
@@ -50,9 +45,7 @@ export async function GET(
   }
 }
 
-// =======================
-// DELETE ORGANIZATION
-// =======================
+// ================= DELETE =================
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
@@ -60,62 +53,49 @@ export async function DELETE(
   try {
     await connectDB();
 
-    const token = req.headers
-      .get("authorization")
-      ?.replace("Bearer ", "");
-
-    if (!token) {
+    const token = req.headers.get("authorization")?.replace("Bearer ", "");
+    if (!token)
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
-    }
 
-    const payload = verifyToken(token) as { id: string };
+    const { id: userId } = verifyToken(token) as { id: string };
     const { orgId } = await params;
 
-    // orgId di DELETE = Mongo ObjectId
-    const organization = await Organization.findById(orgId);
-
-    if (!organization) {
+    const org = await Organization.findById(orgId, "_id").lean();
+    if (!org)
       return NextResponse.json(
         { message: "Organization not found" },
         { status: 404 }
       );
-    }
 
-    // Hanya Leader
-    const leader = await Membership.findOne({
+    const leader = await Membership.exists({
       organizationId: orgId,
-      userId: payload.id,
+      userId,
       role: "Admin",
     });
 
-    if (!leader) {
+    if (!leader)
       return NextResponse.json(
         {
-          message:
-            "Only the leader can delete this organization",
+          message: "Only the leader can delete this organization",
         },
         { status: 403 }
       );
-    }
 
-    // Cascade delete
-    await Group.deleteMany({ organizationId: orgId });
-    await Membership.deleteMany({
-      organizationId: orgId,
-    });
-    await History.deleteMany({ organizationId: orgId });
-
-    await Organization.findByIdAndDelete(orgId);
+    await Promise.all([
+      Group.deleteMany({ organizationId: orgId }),
+      Membership.deleteMany({ organizationId: orgId }),
+      History.deleteMany({ organizationId: orgId }),
+      Organization.findByIdAndDelete(orgId),
+    ]);
 
     return NextResponse.json({
       message: "Organization deleted successfully",
     });
-  } catch (error) {
-    console.error(error);
-
+  } catch (err) {
+    console.error(err);
     return NextResponse.json(
       { message: "Internal Server Error" },
       { status: 500 }

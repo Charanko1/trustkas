@@ -9,50 +9,27 @@ export async function GET(req: NextRequest) {
   try {
     await connectDB();
 
-    // =======================
-    // AUTH
-    // =======================
-    const token = req.headers
-      .get("authorization")
-      ?.replace("Bearer ", "");
-
-    if (!token) {
+    const token = req.headers.get("authorization")?.replace("Bearer ", "");
+    if (!token)
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
-    }
 
-    const payload = verifyToken(token) as { id: string };
+    const { id } = verifyToken(token) as { id: string };
 
-    // =======================
-    // ORGANIZATION YANG DIPIMPIN
-    // =======================
     const adminMemberships = await Membership.find(
-      {
-        userId: payload.id,
-        role: "Admin",
-      },
+      { userId: id, role: "Admin" },
       "organizationId"
     ).lean();
 
-    const organizationIds = adminMemberships.map(
-      (m: any) => m.organizationId
-    );
+    const organizationIds = adminMemberships.map((m: any) => m.organizationId);
 
-    if (organizationIds.length === 0) {
-      return NextResponse.json([]);
-    }
+    if (!organizationIds.length) return NextResponse.json([]);
 
-    // =======================
-    // AGGREGATION (1 QUERY)
-    // =======================
     const requests = await GroupJoinRequest.aggregate([
-      {
-        $match: {
-          status: "Pending",
-        },
-      },
+      { $match: { status: "Pending" } },
+
       {
         $lookup: {
           from: "groups",
@@ -61,16 +38,9 @@ export async function GET(req: NextRequest) {
           as: "group",
         },
       },
-      {
-        $unwind: "$group",
-      },
-      {
-        $match: {
-          "group.organizationId": {
-            $in: organizationIds,
-          },
-        },
-      },
+      { $unwind: "$group" },
+      { $match: { "group.organizationId": { $in: organizationIds } } },
+
       {
         $lookup: {
           from: "memberships",
@@ -79,9 +49,8 @@ export async function GET(req: NextRequest) {
           as: "member",
         },
       },
-      {
-        $unwind: "$member",
-      },
+      { $unwind: "$member" },
+
       {
         $project: {
           _id: 1,
@@ -93,16 +62,13 @@ export async function GET(req: NextRequest) {
           createdAt: 1,
         },
       },
-      {
-        $sort: {
-          createdAt: -1,
-        },
-      },
+
+      { $sort: { createdAt: -1 } },
     ]);
 
     return NextResponse.json(requests);
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
 
     return NextResponse.json(
       { message: "Internal Server Error" },

@@ -8,71 +8,49 @@ import Membership from "@/models/Membership";
 import User from "@/models/User";
 
 export async function POST(req: NextRequest) {
+  await connectDB();
   const session = await mongoose.startSession();
 
   try {
-    await connectDB();
-    session.startTransaction();
-
-    const auth = req.headers.get("authorization");
-
-    if (!auth?.startsWith("Bearer ")) {
-      await session.abortTransaction();
+    const token = req.headers.get("authorization")?.replace("Bearer ", "");
+    if (!token)
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
-    }
 
-    const payload = verifyToken(auth.slice(7)) as {
-      id: string;
-    };
-
+    const { id: userId } = verifyToken(token) as { id: string };
     const { code } = await req.json();
 
+    session.startTransaction();
+
     const organization = await Organization.findOne({
-      code: code.toUpperCase().trim(),
+      code: code.trim().toUpperCase(),
     }).session(session);
 
-    if (!organization) {
-      await session.abortTransaction();
-      return NextResponse.json(
-        { message: "Invalid invitation code" },
-        { status: 404 }
-      );
-    }
+    if (!organization)
+      throw new Error("Invalid invitation code");
 
-    const existing = await Membership.findOne({
+    const member = await Membership.findOne({
       organizationId: organization._id,
-      userId: payload.id,
+      userId,
     }).session(session);
 
-    if (existing) {
-      await session.abortTransaction();
-      return NextResponse.json(
-        { message: "You are already a member" },
-        { status: 400 }
-      );
-    }
+    if (member)
+      throw new Error("You are already a member");
 
-    const user = await User.findById(payload.id)
+    const user = await User.findById(userId)
       .select("name walletAddress")
-      .lean()
       .session(session);
 
-    if (!user) {
-      await session.abortTransaction();
-      return NextResponse.json(
-        { message: "User not found" },
-        { status: 404 }
-      );
-    }
+    if (!user)
+      throw new Error("User not found");
 
     await Membership.create(
       [
         {
           organizationId: organization._id,
-          userId: payload.id,
+          userId,
           name: user.name,
           walletAddress: user.walletAddress,
           role: "Member",
@@ -83,11 +61,7 @@ export async function POST(req: NextRequest) {
 
     await Organization.updateOne(
       { _id: organization._id },
-      {
-        $addToSet: {
-          members: payload.id,
-        },
-      },
+      { $addToSet: { members: userId } },
       { session }
     );
 
@@ -97,14 +71,21 @@ export async function POST(req: NextRequest) {
       message: "Joined successfully",
       organizationId: organization._id,
     });
-  } catch (error) {
+  } catch (err: any) {
     await session.abortTransaction();
 
-    console.error("JOIN ERROR:", error);
+    const status =
+      err.message === "Invalid invitation code"
+        ? 404
+        : err.message === "You are already a member"
+        ? 400
+        : err.message === "User not found"
+        ? 404
+        : 500;
 
     return NextResponse.json(
-      { message: "Internal Server Error" },
-      { status: 500 }
+      { message: status === 500 ? "Internal Server Error" : err.message },
+      { status }
     );
   } finally {
     session.endSession();

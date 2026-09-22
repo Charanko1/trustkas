@@ -8,6 +8,26 @@ import Organization from "@/models/Organization";
 import Group from "@/models/Group";
 import GroupMember from "@/models/GroupMember";
 
+async function getAdmin(req: NextRequest, membershipId: string) {
+  const token = req.headers.get("authorization")?.replace("Bearer ", "");
+  if (!token) return null;
+
+  const { id } = verifyToken(token) as { id: string };
+
+  const target = await Membership.findById(membershipId);
+  if (!target) return null;
+
+  const admin = await Membership.findOne({
+    organizationId: target.organizationId,
+    userId: id,
+    role: "Admin",
+  });
+
+  if (!admin) return null;
+
+  return { admin, target, userId: id };
+}
+
 // =======================
 // SET VALIDATOR
 // =======================
@@ -18,49 +38,25 @@ export async function PATCH(
   try {
     await connectDB();
 
-    const token = req.headers
-      .get("authorization")
-      ?.replace("Bearer ", "");
-
-    if (!token) {
-      return NextResponse.json(
-        { message: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const payload = verifyToken(token) as { id: string };
     const { id } = await params;
     const body = await req.json();
 
-    const target = await Membership.findById(id);
+    const data = await getAdmin(req, id);
 
-    if (!target) {
+    if (!data)
       return NextResponse.json(
-        { message: "Member not found" },
-        { status: 404 }
-      );
-    }
-
-    const admin = await Membership.findOne({
-      organizationId: target.organizationId,
-      userId: payload.id,
-      role: "Admin",
-    });
-
-    if (!admin) {
-      return NextResponse.json(
-        { message: "Only leader can appoint validator" },
+        { message: "Unauthorized" },
         { status: 403 }
       );
-    }
+
+    const { admin, target, userId } = data;
 
     target.role = body.role;
     await target.save();
 
     await History.create({
       organizationId: target.organizationId,
-      userId: payload.id,
+      userId,
       type: "VALIDATOR",
       title: "Validator Appointed",
       description: `${admin.name} appointed ${target.name} as Validator`,
@@ -70,8 +66,8 @@ export async function PATCH(
       message: "Validator updated successfully",
       member: target,
     });
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
 
     return NextResponse.json(
       { message: "Internal Server Error" },
@@ -90,102 +86,66 @@ export async function DELETE(
   try {
     await connectDB();
 
-    const token = req.headers
-      .get("authorization")
-      ?.replace("Bearer ", "");
-
-    if (!token) {
-      return NextResponse.json(
-        { message: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const payload = verifyToken(token) as { id: string };
     const { id } = await params;
 
-    const target = await Membership.findById(id);
+    const data = await getAdmin(req, id);
 
-    if (!target) {
+    if (!data)
       return NextResponse.json(
-        { message: "Member not found" },
-        { status: 404 }
-      );
-    }
-
-    const admin = await Membership.findOne({
-      organizationId: target.organizationId,
-      userId: payload.id,
-      role: "Admin",
-    });
-
-    if (!admin) {
-      return NextResponse.json(
-        { message: "Only leader can remove members" },
+        { message: "Unauthorized" },
         { status: 403 }
       );
-    }
 
-    if (target.role === "Admin") {
+    const { admin, target, userId } = data;
+
+    if (target.role === "Admin")
       return NextResponse.json(
         { message: "Leader cannot be removed" },
         { status: 400 }
       );
-    }
 
-    // =======================
-    // HAPUS DARI SEMUA GROUP
-    // =======================
-    const affectedGroups = await GroupMember.find({
-      membershipId: target._id,
-    }).select("groupId");
+    const groups = await GroupMember.find(
+      { membershipId: target._id },
+      "groupId"
+    );
 
     await GroupMember.deleteMany({
       membershipId: target._id,
     });
 
-    // Sinkron jumlah member tiap group
-    for (const item of affectedGroups) {
-      const totalMember = await GroupMember.countDocuments({
-        groupId: item.groupId,
-      });
+    await Promise.all(
+      groups.map(async (g) => {
+        const total = await GroupMember.countDocuments({
+          groupId: g.groupId,
+        });
 
-      await Group.findByIdAndUpdate(item.groupId, {
-        members: totalMember,
-      });
-    }
-
-    // =======================
-    // HAPUS MEMBERSHIP
-    // =======================
-    await Membership.findByIdAndDelete(id);
-
-    // Hapus relasi di Organization
-    await Organization.findByIdAndUpdate(
-      target.organizationId,
-      {
-        $pull: {
-          members: target.userId,
-        },
-      }
+        return Group.findByIdAndUpdate(g.groupId, {
+          members: total,
+        });
+      })
     );
 
-    // =======================
-    // HISTORY
-    // =======================
-    await History.create({
-      organizationId: target.organizationId,
-      userId: payload.id,
-      type: "APPROVAL",
-      title: "Member Removed",
-      description: `${admin.name} removed ${target.name} from the organization`,
-    });
+    await Promise.all([
+      Membership.findByIdAndDelete(id),
+
+      Organization.findByIdAndUpdate(target.organizationId, {
+        $pull: { members: target.userId },
+      }),
+
+      History.create({
+        organizationId: target.organizationId,
+        userId,
+        type: "APPROVAL",
+        title: "Member Removed",
+        description: `${admin.name} removed ${target.name} from the organization`,
+      }),
+    ]);
 
     return NextResponse.json({
       message: "Member removed successfully",
     });
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
 
     return NextResponse.json(
       { message: "Internal Server Error" },

@@ -3,9 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import Proposal from "@/models/Proposal";
 
 interface Params {
-  params: Promise<{
-    id: string;
-  }>;
+  params: Promise<{ id: string }>;
 }
 
 // ================= GET =================
@@ -13,20 +11,29 @@ export async function GET(
   req: NextRequest,
   { params }: Params
 ) {
-  await connectDB();
+  try {
+    await connectDB();
 
-  const { id } = await params;
+    const { id } = await params;
 
-  const proposal = await Proposal.findById(id);
+    const proposal = await Proposal.findById(id).lean();
 
-  if (!proposal) {
+    if (!proposal) {
+      return NextResponse.json(
+        { message: "Proposal not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(proposal);
+  } catch (err) {
+    console.error(err);
+
     return NextResponse.json(
-      { message: "Proposal not found" },
-      { status: 404 }
+      { message: "Internal Server Error" },
+      { status: 500 }
     );
   }
-
-  return NextResponse.json(proposal);
 }
 
 // ================= PATCH =================
@@ -34,27 +41,38 @@ export async function PATCH(
   req: NextRequest,
   { params }: Params
 ) {
-  await connectDB();
+  try {
+    await connectDB();
 
-  const { id } = await params;
-  const body = await req.json();
+    const { id } = await params;
+    const body = await req.json();
 
-  const proposal = await Proposal.findById(id);
+    const proposal = await Proposal.findByIdAndUpdate(
+      id,
+      {
+        status: body.status,
+        approvedBy: body.validator,
+        approvedAt: new Date(),
+      },
+      { new: true }
+    );
 
-  if (!proposal) {
+    if (!proposal) {
+      return NextResponse.json(
+        { message: "Proposal not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(proposal);
+  } catch (err) {
+    console.error(err);
+
     return NextResponse.json(
-      { message: "Proposal not found" },
-      { status: 404 }
+      { message: "Internal Server Error" },
+      { status: 500 }
     );
   }
-
-  proposal.status = body.status;
-  proposal.approvedBy = body.validator;
-  proposal.approvedAt = new Date();
-
-  await proposal.save();
-
-  return NextResponse.json(proposal);
 }
 
 // ================= DELETE =================
@@ -62,13 +80,22 @@ export async function DELETE(
   req: NextRequest,
   { params }: Params
 ) {
-  await connectDB();
+  try {
+    await connectDB();
 
-  const { id } = await params;
+    const { id } = await params;
 
-  await Proposal.findByIdAndDelete(id);
+    await Proposal.findByIdAndDelete(id);
 
-  return NextResponse.json({
-    message: "Proposal deleted successfully",
-  });
+    return NextResponse.json({
+      message: "Proposal deleted successfully",
+    });
+  } catch (err) {
+    console.error(err);
+
+    return NextResponse.json(
+      { message: "Internal Server Error" },
+      { status: 500 }
+    );
+  }
 }

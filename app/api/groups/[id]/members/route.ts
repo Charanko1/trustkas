@@ -13,52 +13,57 @@ export async function GET(
   try {
     await connectDB();
 
-    const token = req.headers
-      .get("authorization")
-      ?.replace("Bearer ", "");
+    const token = req.headers.get("authorization")?.replace("Bearer ", "");
+    if (!token)
+      return NextResponse.json(
+        { message: "Unauthorized" },
+        { status: 401 }
+      );
 
-    if (!token) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
-
-    const payload = verifyToken(token) as { id: string };
+    const { id: userId } = verifyToken(token) as { id: string };
     const { id } = await params;
 
-    const group = await Group.findById(id);
+    const group = await Group.findById(id, "organizationId").lean();
+    if (!group)
+      return NextResponse.json(
+        { message: "Group not found" },
+        { status: 404 }
+      );
 
-    if (!group) {
-      return NextResponse.json({ message: "Group not found" }, { status: 404 });
-    }
+    const membership = await Membership.findOne(
+      {
+        organizationId: group.organizationId,
+        userId,
+      },
+      "_id"
+    ).lean();
 
-    const membership = await Membership.findOne({
-      organizationId: group.organizationId,
-      userId: payload.id,
-    });
+    if (!membership)
+      return NextResponse.json(
+        { message: "Forbidden" },
+        { status: 403 }
+      );
 
-    if (!membership) {
-      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
-    }
+    const members = await GroupMember.find({ groupId: id })
+      .populate({
+        path: "membershipId",
+        select: "name walletAddress",
+      })
+      .lean();
 
-    const members = await GroupMember.find({
-      groupId: group._id,
-    }).populate({
-      path: "membershipId",
-      model: "Membership",
-      select: "name walletAddress",
-    });
+    return NextResponse.json(
+      members
+        .filter((m: any) => m.membershipId)
+        .map((m: any) => ({
+          _id: m.membershipId._id,
+          name: m.membershipId.name,
+          walletAddress: m.membershipId.walletAddress || "",
+          role: m.role,
+        }))
+    );
+  } catch (err) {
+    console.error(err);
 
-    const result = members
-      .filter((m: any) => m.membershipId)
-      .map((m: any) => ({
-        _id: m.membershipId._id,
-        name: m.membershipId.name,
-        walletAddress: m.membershipId.walletAddress || "",
-        role: m.role,
-      }));
-
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error(error);
     return NextResponse.json(
       { message: "Internal Server Error" },
       { status: 500 }

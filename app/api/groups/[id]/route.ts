@@ -14,99 +14,72 @@ export async function GET(
   try {
     await connectDB();
 
-    // =======================
-    // AUTH
-    // =======================
-    const token = req.headers
-      .get("authorization")
-      ?.replace("Bearer ", "");
-
-    if (!token) {
+    const token = req.headers.get("authorization")?.replace("Bearer ", "");
+    if (!token)
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
-    }
 
-    const payload = verifyToken(token) as { id: string };
+    const { id: userId } = verifyToken(token) as { id: string };
     const { id } = await params;
 
-    // =======================
-    // GROUP
-    // =======================
-    const group = await Group.findById(id);
-
-    if (!group) {
+    const group = await Group.findById(id).lean();
+    if (!group)
       return NextResponse.json(
         { message: "Group not found" },
         { status: 404 }
       );
-    }
 
-    // =======================
-    // ORGANIZATION MEMBERSHIP
-    // =======================
-    const membership = await Membership.findOne({
-      organizationId: group.organizationId,
-      userId: payload.id,
-    });
+    const membership = await Membership.findOne(
+      {
+        organizationId: group.organizationId,
+        userId,
+      },
+      "role"
+    ).lean();
 
-    if (!membership) {
+    if (!membership)
       return NextResponse.json(
         { message: "You are not an organization member" },
         { status: 403 }
       );
-    }
 
-    // =======================
-    // ONLY LEADER OR GROUP MEMBER
-    // =======================
     const isLeader = membership.role === "Admin";
 
     if (!isLeader) {
-      const groupMember = await GroupMember.findOne({
+      const joined = await GroupMember.exists({
         groupId: group._id,
         membershipId: membership._id,
       });
 
-      if (!groupMember) {
+      if (!joined)
         return NextResponse.json(
           { message: "You haven't joined this group" },
           { status: 403 }
         );
-      }
     }
 
-    // =======================
-    // STATISTICS
-    // =======================
     const [memberCount, proposalCount] = await Promise.all([
       GroupMember.countDocuments({ groupId: group._id }),
       Proposal.countDocuments({ groupId: group._id }),
     ]);
 
-    // =======================
-    // RESPONSE
-    // =======================
     return NextResponse.json({
       _id: group._id,
       name: group.name,
       description: group.description,
-
       leader: group.leader,
       leaderId: group.leaderId,
-
       organizationId: group.organizationId,
       organizationName: group.organizationName,
       organizationSlug: group.organizationSlug,
-
       members: memberCount,
       totalProposal: proposalCount,
-
       isLeader,
     });
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
 
     return NextResponse.json(
       { message: "Internal Server Error" },

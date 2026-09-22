@@ -13,58 +13,53 @@ export async function PATCH(
   try {
     await connectDB();
 
-    const token = req.headers
-      .get("authorization")
-      ?.replace("Bearer ", "");
-
-    if (!token) {
+    const token = req.headers.get("authorization")?.replace("Bearer ", "");
+    if (!token)
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
-    }
 
-    const payload = verifyToken(token) as { id: string };
+    const { id } = verifyToken(token) as { id: string };
     const { requestId } = await params;
     const { action } = await req.json();
 
     const request = await GroupJoinRequest.findById(requestId);
-
-    if (!request) {
+    if (!request)
       return NextResponse.json(
         { message: "Request not found" },
         { status: 404 }
       );
-    }
 
     const group = await Group.findById(request.groupId);
-
-    if (!group) {
+    if (!group)
       return NextResponse.json(
         { message: "Group not found" },
         { status: 404 }
       );
-    }
 
-    // Hanya leader group
-    if (group.leaderId.toString() !== payload.id) {
+    if (String(group.leaderId) !== id)
       return NextResponse.json(
         { message: "Only leader can approve requests" },
         { status: 403 }
       );
-    }
 
-    // Reject
+    // =======================
+    // REJECT
+    // =======================
     if (action === "Rejected") {
-      request.status = "Rejected";
-      await request.save();
+      await GroupJoinRequest.findByIdAndUpdate(requestId, {
+        status: "Rejected",
+      });
 
       return NextResponse.json({
         message: "Request rejected",
       });
     }
 
-    // Approve
+    // =======================
+    // APPROVE
+    // =======================
     const exist = await GroupMember.findOne({
       groupId: group._id,
       membershipId: request.membershipId,
@@ -78,22 +73,24 @@ export async function PATCH(
       });
     }
 
-    request.status = "Approved";
-    await request.save();
+    await GroupJoinRequest.findByIdAndUpdate(requestId, {
+      status: "Approved",
+    });
 
-    // Sinkron jumlah member
     const total = await GroupMember.countDocuments({
       groupId: group._id,
     });
 
-    group.members = total;
-    await group.save();
+    await Group.updateOne(
+      { _id: group._id },
+      { members: total }
+    );
 
     return NextResponse.json({
       message: "Member approved successfully",
     });
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
 
     return NextResponse.json(
       { message: "Internal Server Error" },

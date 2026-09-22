@@ -9,46 +9,34 @@ export async function GET(req: NextRequest) {
   try {
     await connectDB();
 
-    const token = req.headers
-      .get("authorization")
-      ?.replace("Bearer ", "");
-
-    if (!token) {
+    const token = req.headers.get("authorization")?.replace("Bearer ", "");
+    if (!token)
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
-    }
 
     verifyToken(token);
 
     const slug = req.nextUrl.searchParams.get("organization");
+    if (!slug) return NextResponse.json([]);
 
-    if (!slug) {
-      return NextResponse.json([]);
-    }
+    const organizationId = (
+      await Organization.findOne({ slug }, "_id").lean()
+    )?._id;
 
-    // Ambil _id saja
-    const organization = await Organization.findOne(
-      { slug },
-      "_id"
-    ).lean();
+    if (!organizationId) return NextResponse.json([]);
 
-    if (!organization) {
-      return NextResponse.json([]);
-    }
-
-    // Ambil field yang dipakai UI saja
     const members = await Membership.find(
-      { organizationId: organization._id },
+      { organizationId },
       "name role walletAddress userId createdAt"
     )
       .sort({ createdAt: 1 })
       .lean();
 
     return NextResponse.json(members);
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
 
     return NextResponse.json(
       { message: "Internal Server Error" },

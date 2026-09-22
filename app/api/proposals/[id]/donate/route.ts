@@ -4,15 +4,29 @@ import Proposal from "@/models/Proposal";
 
 export async function PATCH(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB();
 
-    const { id } = await context.params;
+    const { id } = await params;
     const { amount, donor, txHash } = await req.json();
 
-    const proposal = await Proposal.findById(id);
+    const proposal = await Proposal.findByIdAndUpdate(
+      id,
+      {
+        $inc: { fundedAmount: amount },
+        $push: {
+          transactions: {
+            amount,
+            donor,
+            txHash,
+            donatedAt: new Date(),
+          },
+        },
+      },
+      { new: true }
+    );
 
     if (!proposal) {
       return NextResponse.json(
@@ -21,23 +35,12 @@ export async function PATCH(
       );
     }
 
-    proposal.fundedAmount += amount;
-
-    proposal.transactions.push({
-      amount,
-      donor,
-      txHash,
-      donatedAt: new Date(),
-    });
-
-    await proposal.save();
-
     return NextResponse.json({
       message: "Donation recorded successfully",
       proposal,
     });
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
 
     return NextResponse.json(
       { message: "Internal Server Error" },

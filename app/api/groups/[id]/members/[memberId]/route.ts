@@ -13,90 +13,67 @@ export async function DELETE(
   try {
     await connectDB();
 
-    // =======================
-    // AUTH
-    // =======================
-    const token = req.headers
-      .get("authorization")
-      ?.replace("Bearer ", "");
-
-    if (!token) {
+    const token = req.headers.get("authorization")?.replace("Bearer ", "");
+    if (!token)
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
-    }
 
-    const payload = verifyToken(token) as { id: string };
+    const { id: userId } = verifyToken(token) as { id: string };
     const { id, memberId } = await params;
 
-    // =======================
-    // GROUP
-    // =======================
-    const group = await Group.findById(id);
-
-    if (!group) {
+    const group = await Group.findById(id, "organizationId").lean();
+    if (!group)
       return NextResponse.json(
         { message: "Group not found" },
         { status: 404 }
       );
-    }
 
-    // =======================
-    // ONLY LEADER
-    // =======================
-    const leader = await Membership.findOne({
-      organizationId: group.organizationId,
-      userId: payload.id,
-      role: "Admin",
-    });
+    const leader = await Membership.findOne(
+      {
+        organizationId: group.organizationId,
+        userId,
+        role: "Admin",
+      },
+      "_id"
+    ).lean();
 
-    if (!leader) {
+    if (!leader)
       return NextResponse.json(
         { message: "Only leader can remove members" },
         { status: 403 }
       );
-    }
 
-    // Tidak boleh menghapus diri sendiri
-    if (leader._id.toString() === memberId) {
+    if (String(leader._id) === memberId)
       return NextResponse.json(
         { message: "Leader cannot remove themselves" },
         { status: 400 }
       );
-    }
 
-    // =======================
-    // REMOVE MEMBER
-    // =======================
     const deleted = await GroupMember.findOneAndDelete({
       groupId: id,
       membershipId: memberId,
     });
 
-    if (!deleted) {
+    if (!deleted)
       return NextResponse.json(
         { message: "Member not found in this group" },
         { status: 404 }
       );
-    }
 
-    // =======================
-    // SYNC MEMBER COUNT
-    // =======================
-    const totalMember = await GroupMember.countDocuments({
-      groupId: id,
+    const totalMember = await GroupMember.countDocuments({ groupId: id });
+
+    await Group.findByIdAndUpdate(id, {
+      members: totalMember,
     });
-
-    group.members = totalMember;
-    await group.save();
 
     return NextResponse.json({
       message: "Member removed successfully",
       members: totalMember,
     });
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
 
     return NextResponse.json(
       { message: "Internal Server Error" },

@@ -6,59 +6,40 @@ import Organization from "@/models/Organization";
 import Membership from "@/models/Membership";
 import User from "@/models/User";
 
-function generateInviteCode(name: string) {
-  const prefix = name
-    .replace(/[^A-Za-z]/g, "")
-    .toUpperCase()
-    .slice(0, 4);
+const getUserId = (req: NextRequest) => {
+  const token = req.headers.get("authorization")?.replace("Bearer ", "");
+  if (!token) return null;
+  return (verifyToken(token) as { id: string }).id;
+};
 
-  const random = Math.random()
+const generateInviteCode = (name: string) =>
+  `${name.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 4)}-${Math.random()
     .toString(36)
-    .substring(2, 8)
-    .toUpperCase();
+    .slice(2, 8)
+    .toUpperCase()}`;
 
-  return `${prefix}-${random}`;
-}
+async function generateUniqueSlug(base: string) {
+  let slug = base;
+  let i = 1;
 
-async function generateUniqueSlug(baseSlug: string) {
-  let slug = baseSlug;
-  let count = 1;
-
-  while (await Organization.findOne({ slug }).lean()) {
-    slug = `${baseSlug}-${count}`;
-    count++;
+  while (await Organization.exists({ slug })) {
+    slug = `${base}-${i++}`;
   }
 
   return slug;
 }
 
-// =======================
-// GET MY ORGANIZATIONS
-// =======================
+// ================= GET =================
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
 
-    const auth = req.headers.get("authorization");
+    const userId = getUserId(req);
+    if (!userId)
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
-    if (!auth?.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { message: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const payload = verifyToken(auth.slice(7)) as {
-      id: string;
-    };
-
-    // 1 QUERY SAJA
     const organizations = await Membership.aggregate([
-      {
-        $match: {
-          userId: payload.id,
-        },
-      },
+      { $match: { userId } },
       {
         $lookup: {
           from: "organizations",
@@ -67,9 +48,7 @@ export async function GET(req: NextRequest) {
           as: "organization",
         },
       },
-      {
-        $unwind: "$organization",
-      },
+      { $unwind: "$organization" },
       {
         $project: {
           _id: "$organization._id",
@@ -77,9 +56,7 @@ export async function GET(req: NextRequest) {
           slug: "$organization.slug",
           description: "$organization.description",
           treasury: "$organization.treasury",
-          members: {
-            $size: "$organization.members",
-          },
+          members: { $size: "$organization.members" },
           owner: "$organization.owner",
           code: "$organization.code",
         },
@@ -87,9 +64,8 @@ export async function GET(req: NextRequest) {
     ]);
 
     return NextResponse.json(organizations);
-  } catch (error) {
-    console.error("GET ORGANIZATIONS:", error);
-
+  } catch (err) {
+    console.error(err);
     return NextResponse.json(
       { message: "Internal Server Error" },
       { status: 500 }
@@ -97,61 +73,40 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// =======================
-// CREATE ORGANIZATION
-// =======================
+// ================= POST =================
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
 
-    const auth = req.headers.get("authorization");
-
-    if (!auth?.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { message: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const payload = verifyToken(auth.slice(7)) as {
-      id: string;
-    };
-
-    const currentUser = await User.findById(payload.id).lean();
-
-    if (!currentUser) {
-      return NextResponse.json(
-        { message: "User not found" },
-        { status: 404 }
-      );
-    }
+    const userId = getUserId(req);
+    if (!userId)
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
 
-    const baseSlug = body.slug
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, "-");
+    const user = await User.findById(userId).lean();
+    if (!user)
+      return NextResponse.json({ message: "User not found" }, { status: 404 });
 
-    const slug = await generateUniqueSlug(baseSlug);
-
-    const inviteCode = generateInviteCode(body.name);
+    const slug = await generateUniqueSlug(
+      body.slug.toLowerCase().trim().replace(/\s+/g, "-")
+    );
 
     const organization = await Organization.create({
       name: body.name,
       slug,
       description: body.description,
-      code: inviteCode,
+      code: generateInviteCode(body.name),
       treasury: 0,
-      owner: payload.id,
-      members: [payload.id],
+      owner: userId,
+      members: [userId],
     });
 
     await Membership.create({
       organizationId: organization._id,
-      userId: payload.id,
-      name: currentUser.name,
-      walletAddress: currentUser.walletAddress,
+      userId,
+      name: user.name,
+      walletAddress: user.walletAddress,
       role: "Admin",
     });
 
@@ -162,11 +117,10 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error: any) {
-    console.error("CREATE ORGANIZATION:", error);
-
+  } catch (err: any) {
+    console.error(err);
     return NextResponse.json(
-      { message: error.message },
+      { message: err.message || "Internal Server Error" },
       { status: 500 }
     );
   }

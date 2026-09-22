@@ -14,120 +14,89 @@ export async function POST(
   try {
     await connectDB();
 
-    // =======================
-    // AUTH
-    // =======================
-    const token = req.headers
-      .get("authorization")
-      ?.replace("Bearer ", "");
-
-    if (!token) {
+    const token = req.headers.get("authorization")?.replace("Bearer ", "");
+    if (!token)
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
-    }
 
-    const payload = verifyToken(token) as { id: string };
+    const { id: userId } = verifyToken(token) as { id: string };
     const { id } = await params;
 
-    // =======================
-    // GROUP
-    // =======================
-    const group = await Group.findById(id);
-
-    if (!group) {
+    const group = await Group.findById(id, "organizationId").lean();
+    if (!group)
       return NextResponse.json(
         { message: "Group not found" },
         { status: 404 }
       );
-    }
 
-    // =======================
-    // MEMBERSHIP
-    // =======================
-    const membership = await Membership.findOne({
-      organizationId: group.organizationId,
-      userId: payload.id,
-    });
+    const membership = await Membership.findOne(
+      {
+        organizationId: group.organizationId,
+        userId,
+      },
+      "_id role"
+    ).lean();
 
-    if (!membership) {
+    if (!membership)
       return NextResponse.json(
-        {
-          message: "You are not a member of this organization",
-        },
+        { message: "You are not a member of this organization" },
         { status: 403 }
       );
-    }
 
-    // Leader tidak boleh request
-    if (membership.role === "Admin") {
+    if (membership.role === "Admin")
       return NextResponse.json(
         { message: "Leader is already part of this group" },
         { status: 400 }
       );
-    }
 
-    // =======================
-    // ALREADY MEMBER
-    // =======================
-    const alreadyMember = await GroupMember.findOne({
-      groupId: group._id,
+    const joined = await GroupMember.exists({
+      groupId: id,
       membershipId: membership._id,
     });
 
-    if (alreadyMember) {
+    if (joined)
       return NextResponse.json(
         { message: "You already joined this group" },
         { status: 400 }
       );
-    }
 
-    // =======================
-    // CHECK REQUEST
-    // =======================
-    const existingRequest = await GroupJoinRequest.findOne({
-      groupId: group._id,
+    const request = await GroupJoinRequest.findOne({
+      groupId: id,
       membershipId: membership._id,
-    });
+    }).lean();
 
-    if (existingRequest) {
-      // Masih pending
-      if (existingRequest.status === "Pending") {
-        return NextResponse.json(
-          { message: "Join request already pending" },
-          { status: 400 }
-        );
-      }
+    if (request?.status === "Pending")
+      return NextResponse.json(
+        { message: "Join request already pending" },
+        { status: 400 }
+      );
 
-      // Sudah di-approve (jaga-jaga)
-      if (existingRequest.status === "Approved") {
-        return NextResponse.json(
-          { message: "You already joined this group" },
-          { status: 400 }
-        );
-      }
+    if (request?.status === "Approved")
+      return NextResponse.json(
+        { message: "You already joined this group" },
+        { status: 400 }
+      );
 
-      // Rejected → boleh request lagi
-      if (existingRequest.status === "Rejected") {
-        existingRequest.status = "Pending";
-        await existingRequest.save();
+    if (request?.status === "Rejected") {
+      const updated = await GroupJoinRequest.findByIdAndUpdate(
+        request._id,
+        { status: "Pending" },
+        { new: true }
+      );
 
-        return NextResponse.json(
-          {
-            message: "Join request sent successfully",
-            request: existingRequest,
-          },
-          { status: 200 }
-        );
-      }
+      return NextResponse.json(
+        {
+          message: "Join request sent successfully",
+          request: updated,
+        },
+        { status: 200 }
+      );
     }
 
-    // =======================
-    // CREATE REQUEST
-    // =======================
-    const requestJoin = await GroupJoinRequest.create({
-      groupId: group._id,
+    const newRequest = await GroupJoinRequest.create({
+      groupId: id,
       membershipId: membership._id,
       status: "Pending",
     });
@@ -135,12 +104,12 @@ export async function POST(
     return NextResponse.json(
       {
         message: "Join request sent successfully",
-        request: requestJoin,
+        request: newRequest,
       },
       { status: 201 }
     );
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
 
     return NextResponse.json(
       { message: "Internal Server Error" },
