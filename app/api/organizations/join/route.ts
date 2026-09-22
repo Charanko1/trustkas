@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
     }
 
     const payload = verifyToken(token) as { id: string };
+
     const { code } = await req.json();
 
     const organization = await Organization.findOne({
@@ -35,7 +36,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Cek apakah sudah menjadi anggota
     const exist = await Membership.findOne({
       organizationId: organization._id,
       userId: payload.id,
@@ -50,16 +50,21 @@ export async function POST(req: NextRequest) {
 
     const user = await User.findById(payload.id);
 
-    // Tambahkan membership
+    if (!user) {
+      return NextResponse.json(
+        { message: "User not found" },
+        { status: 404 }
+      );
+    }
+
     await Membership.create({
       organizationId: organization._id,
       userId: payload.id,
-      name: user?.name || "Member",
-      walletAddress: user?.wallet || "",
+      name: user.name,
+      walletAddress: user.walletAddress,
       role: "Member",
     });
 
-    // Tambahkan ke array members
     organization.members.push(payload.id);
     await organization.save();
 

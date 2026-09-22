@@ -4,6 +4,7 @@ import { verifyToken } from "@/lib/auth";
 
 import Organization from "@/models/Organization";
 import Membership from "@/models/Membership";
+import User from "@/models/User";
 
 function generateInviteCode(name: string) {
   const prefix = name
@@ -49,10 +50,10 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const user = verifyToken(token) as { id: string };
+    const payload = verifyToken(token) as { id: string };
 
     const memberships = await Membership.find({
-      userId: user.id,
+      userId: payload.id,
     });
 
     const organizationIds = memberships.map(
@@ -104,7 +105,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const user = verifyToken(token) as { id: string };
+    const payload = verifyToken(token) as { id: string };
+
+    const currentUser = await User.findById(payload.id);
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { message: "User not found" },
+        { status: 404 }
+      );
+    }
 
     const body = await req.json();
 
@@ -123,15 +133,15 @@ export async function POST(req: NextRequest) {
       description: body.description,
       code: inviteCode,
       treasury: 0,
-      owner: user.id,
-      members: [user.id],
+      owner: payload.id,
+      members: [payload.id],
     });
 
     await Membership.create({
       organizationId: organization._id,
-      userId: user.id,
-      name: body.ownerName,
-      walletAddress: body.walletAddress || "",
+      userId: payload.id,
+      name: currentUser.name,
+      walletAddress: currentUser.walletAddress,
       role: "Admin",
     });
 

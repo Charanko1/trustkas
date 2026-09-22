@@ -3,6 +3,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useState,
 } from "react";
 import { BrowserProvider } from "ethers";
@@ -17,11 +18,8 @@ const WalletContext = createContext<WalletContextType>({
   connectWallet: async () => {},
 });
 
-// ===============================
-// BOT Chain Testnet Config
-// ===============================
 const BOT_CHAIN = {
-  chainId: "0x3C8", // 968
+  chainId: "0x3C8",
   chainName: "BOT Chain Testnet",
   nativeCurrency: {
     name: "BOT",
@@ -45,9 +43,34 @@ export function WalletProvider({
 }) {
   const [address, setAddress] = useState("");
 
-  // ===============================
-  // Switch otomatis ke BOT Chain
-  // ===============================
+  // Ambil wallet dari database saat aplikasi dibuka
+  useEffect(() => {
+    loadWallet();
+  }, []);
+
+  async function loadWallet() {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const res = await fetch("/api/profile", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) return;
+
+      const user = await res.json();
+
+      if (user.walletAddress) {
+        setAddress(user.walletAddress);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   async function switchToBOT() {
     const chainId = await window.ethereum.request({
       method: "eth_chainId",
@@ -72,9 +95,6 @@ export function WalletProvider({
     }
   }
 
-  // ===============================
-  // Connect Wallet
-  // ===============================
   async function connectWallet() {
     if (!window.ethereum) {
       alert("Please install MetaMask");
@@ -82,10 +102,8 @@ export function WalletProvider({
     }
 
     try {
-      // 1. Switch ke BOT Chain
       await switchToBOT();
 
-      // 2. Connect MetaMask
       const provider = new BrowserProvider(window.ethereum);
 
       const accounts = await provider.send(
@@ -95,13 +113,13 @@ export function WalletProvider({
 
       const walletAddress = accounts[0];
 
-      // 3. Simpan ke Context
+      // Update Header langsung
       setAddress(walletAddress);
 
-      // 4. Update MongoDB
+      // Simpan ke MongoDB
       const token = localStorage.getItem("token");
 
-      const res = await fetch("/api/user/profile", {
+      const res = await fetch("/api/profile", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -115,31 +133,19 @@ export function WalletProvider({
       if (!res.ok) {
         throw new Error("Failed to save wallet");
       }
-
-      const updatedUser = await res.json();
-
-      // 5. Update localStorage
-      localStorage.setItem(
-        "user",
-        JSON.stringify(updatedUser)
-      );
-    } catch (error) {
-      console.error(error);
-      alert("Failed to connect BOT Chain");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to connect wallet");
     }
   }
 
   return (
     <WalletContext.Provider
-      value={{
-        address,
-        connectWallet,
-      }}
+      value={{ address, connectWallet }}
     >
       {children}
     </WalletContext.Provider>
   );
 }
 
-export const useWallet = () =>
-  useContext(WalletContext);
+export const useWallet = () => useContext(WalletContext);

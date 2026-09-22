@@ -6,13 +6,17 @@ import { useWallet } from "@/context/WalletContext";
 export default function Header() {
   const { address, connectWallet } = useWallet();
 
+  async function handleConnect() {
+    await connectWallet();
+
+    // Refresh supaya Sidebar & Profile ikut update
+    window.location.reload();
+  }
+
   return (
     <header className="h-16 bg-white border-b px-8 flex items-center justify-between">
       <div>
-        <h2 className="font-semibold text-lg">
-          Welcome Back
-        </h2>
-
+        <h2 className="font-semibold text-lg">Welcome Back</h2>
         <p className="text-sm text-gray-500">
           Manage your organizations
         </p>
@@ -28,7 +32,7 @@ export default function Header() {
           </div>
         ) : (
           <button
-            onClick={connectWallet}
+            onClick={handleConnect}
             className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
           >
             <Wallet size={18} />

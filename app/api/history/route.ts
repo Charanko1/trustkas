@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { verifyToken } from "@/lib/auth";
 
+import History from "@/models/History";
 import Membership from "@/models/Membership";
-import Organization from "@/models/Organization";
 
 export async function GET(req: NextRequest) {
   try {
@@ -20,25 +20,23 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    verifyToken(token);
+    const payload = verifyToken(token) as { id: string };
 
-    const slug = req.nextUrl.searchParams.get("organization");
+    // Cari semua organisasi yang diikuti user
+    const memberships = await Membership.find({
+      userId: payload.id,
+    });
 
-    if (!slug) {
-      return NextResponse.json([]);
-    }
+    const organizationIds = memberships.map(
+      (m) => m.organizationId
+    );
 
-    const organization = await Organization.findOne({ slug });
+    // Ambil seluruh history organisasi tersebut
+    const histories = await History.find({
+      organizationId: { $in: organizationIds },
+    }).sort({ createdAt: -1 });
 
-    if (!organization) {
-      return NextResponse.json([]);
-    }
-
-    const members = await Membership.find({
-      organizationId: organization._id,
-    }).sort({ createdAt: 1 });
-
-    return NextResponse.json(members);
+    return NextResponse.json(histories);
   } catch (error) {
     console.error(error);
 

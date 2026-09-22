@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useWallet } from "@/context/WalletContext";
 import {
   Wallet,
   Users,
@@ -10,10 +11,12 @@ import {
   Plus,
   Copy,
   Check,
+  MoreVertical,
+  LogOut,
+  Trash2,
 } from "lucide-react";
 
 import CreateGroupModal from "@/components/group/CreateGroupModal";
-import CreateElectionModal from "@/components/election/CreateElectionModal";
 
 interface Organization {
   _id: string;
@@ -33,26 +36,28 @@ interface Group {
   members: number;
 }
 
-interface Election {
+interface Member {
   _id: string;
-  title: string;
-  status: "Registration" | "Voting" | "Closed";
-  startDate: string;
-  endDate: string;
+  name: string;
+  walletAddress: string;
+  role: "Admin" | "Member" | "Validator";
 }
 
 export default function OrganizationPage() {
   const params = useParams();
   const orgId = params.orgId as string;
+  const { address } = useWallet();
 
   const [org, setOrg] = useState<Organization | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
-  const [elections, setElections] = useState<Election[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [members, setMembers] = useState<Member[]>([]);
 
+  const [loading, setLoading] = useState(true);
   const [groupOpen, setGroupOpen] = useState(false);
-  const [electionOpen, setElectionOpen] = useState(false);
+
   const [copied, setCopied] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [myRole, setMyRole] = useState<"Admin" | "Member" | "Validator">("Member");
 
   useEffect(() => {
     if (orgId) fetchData();
@@ -64,25 +69,44 @@ export default function OrganizationPage() {
     const token = localStorage.getItem("token");
 
     try {
-      const [orgRes, groupRes, electionRes] = await Promise.all([
-        fetch(`/api/organizations/${orgId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`/api/groups?organization=${orgId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`/api/elections?organization=${orgId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
+      const [orgRes, groupRes, memberRes] =
+        await Promise.all([
+          fetch(`/api/organizations/${orgId}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }),
+
+          fetch(`/api/groups?organization=${orgId}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }),
+
+          fetch(
+            `/api/memberships?organization=${orgId}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          ),
+        ]);
 
       const orgData = await orgRes.json();
       const groupData = await groupRes.json();
-      const electionData = await electionRes.json();
+      const memberData = await memberRes.json();
 
       setOrg(orgData);
       setGroups(Array.isArray(groupData) ? groupData : []);
-      setElections(Array.isArray(electionData) ? electionData : []);
+      const list = Array.isArray(memberData) ? memberData : [];
+      setMembers(list);
+      const profileRes = await fetch("/api/profile", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const profile = await profileRes.json();
+      const me = list.find((m: Member) => m.name === profile.name);
+      if (me) setMyRole(me.role);
     } catch (err) {
       console.error(err);
     } finally {
@@ -94,6 +118,7 @@ export default function OrganizationPage() {
     if (!org) return;
 
     await navigator.clipboard.writeText(org.code);
+
     setCopied(true);
 
     setTimeout(() => setCopied(false), 2000);
@@ -122,29 +147,71 @@ export default function OrganizationPage() {
     fetchData();
   }
 
-  async function createElection(data: {
-    title: string;
-    startDate: string;
-    endDate: string;
-  }) {
+  async function setValidator(id: string) {
     const token = localStorage.getItem("token");
 
-    await fetch("/api/elections", {
-      method: "POST",
+    await fetch(`/api/memberships/${id}`, {
+      method: "PATCH",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        organizationId: orgId,
-        title: data.title,
-        startDate: data.startDate,
-        endDate: data.endDate,
+        role: "Validator",
       }),
     });
 
-    setElectionOpen(false);
     fetchData();
+  }
+
+  async function removeMember(id: string) {
+    const ok = confirm("Remove this member?");
+
+    if (!ok) return;
+
+    const token = localStorage.getItem("token");
+
+    const res = await fetch(`/api/memberships/${id}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await res.json();
+
+    alert(data.message);
+
+    if (res.ok) {
+      fetchData();
+    }
+  }
+
+  async function exitOrganization() {
+    const token = localStorage.getItem("token");
+    const res = await fetch("/api/organizations/exit", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ organizationId: org?._id }),
+    });
+    const data = await res.json();
+    alert(data.message);
+    if (res.ok) window.location.href = "/dashboard";
+  }
+
+  async function deleteOrganization() {
+    if (!confirm(`Delete "${org?.name}" permanently?`)) return;
+    const token = localStorage.getItem("token");
+    const res = await fetch(`/api/organizations/${org?._id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    alert(data.message);
+    if (res.ok) window.location.href = "/dashboard";
   }
 
   if (loading || !org) {
@@ -163,46 +230,79 @@ export default function OrganizationPage() {
         onCreate={createGroup}
       />
 
-      <CreateElectionModal
-        open={electionOpen}
-        onClose={() => setElectionOpen(false)}
-        onCreate={createElection}
-      />
-
       <div className="space-y-6">
         {/* ================= HERO ================= */}
-        <div className="relative bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 md:p-8 text-white overflow-hidden">
+        <div className="relative bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 md:p-8 text-white overflow-visible">
+          {/* Three Dot */}
+          <div className="absolute top-5 right-5">
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="w-10 h-10 rounded-full bg-white/15 border border-white/20 hover:bg-white/25 flex items-center justify-center transition"
+            >
+              <MoreVertical size={18} />
+            </button>
 
-          {/* Invite Code */}
-          <button
-            onClick={copyCode}
-            className="absolute top-5 right-5 bg-white/15 hover:bg-white/25 border border-white/20 backdrop-blur-sm rounded-full px-3 py-2 flex items-center gap-2 transition"
-          >
-            <div className="text-left hidden sm:block">
-              <p className="text-[9px] uppercase tracking-wider text-blue-100">
-                Invite
-              </p>
+            {menuOpen && (
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border z-50 overflow-hidden">
+                {/* Copy Invite */}
+                <button
+                  onClick={() => {
+                    copyCode();
+                    setMenuOpen(false);
+                  }}
+                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50"
+                >
+                  {copied ? (
+                    <Check size={18} className="text-green-600" />
+                  ) : (
+                    <Copy size={18} className="text-blue-600" />
+                  )}
 
-              <p className="text-xs font-bold tracking-wider">
-                {org.code}
-              </p>
-            </div>
+                  <div className="text-left">
+                    <p className="text-xs text-gray-500">
+                      Invitation Code
+                    </p>
+                    <p className="font-semibold text-gray-900">
+                      {org.code}
+                    </p>
+                  </div>
+                </button>
 
-            {copied ? (
-              <Check size={16} className="text-green-300" />
-            ) : (
-              <Copy size={16} />
+                <div className="border-t" />
+
+                {/* Exit */}
+                <button
+                  onClick={exitOrganization}
+                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-orange-50 text-gray-800"
+                >
+                  <LogOut size={18} className="text-orange-600" />
+                  Exit Organization
+                </button>
+
+                <div className="border-t" />
+
+                {/* Delete */}
+                <button
+                  onClick={deleteOrganization}
+                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-red-50 text-red-600"
+                >
+                  <Trash2 size={18} />
+                  Delete Organization
+                </button>
+              </div>
             )}
-          </button>
+          </div>
 
-          {/* Organization Info */}
-          <h1 className="text-3xl font-bold pr-28">
-            {org.name}
-          </h1>
+          {/* Title */}
+          <div className="pr-14">
+            <h1 className="text-3xl font-bold">
+              {org.name}
+            </h1>
 
-          <p className="text-blue-100 mt-2 pr-20">
-            {org.description}
-          </p>
+            <p className="text-blue-100 mt-2">
+              {org.description}
+            </p>
+          </div>
 
           {/* Stats */}
           <div className="grid grid-cols-3 gap-6 mt-8">
@@ -213,7 +313,7 @@ export default function OrganizationPage() {
               </div>
 
               <h2 className="text-2xl font-bold mt-2">
-                {org.treasury} ETH
+                {org.treasury} BOT
               </h2>
             </div>
 
@@ -241,65 +341,98 @@ export default function OrganizationPage() {
           </div>
         </div>
 
-        {/* ================= VALIDATOR ELECTION ================= */}
+        {/* ================= MEMBERS ================= */}
         <div className="bg-white rounded-2xl border p-6">
-          <div className="flex justify-between items-center mb-5">
-            <div>
-              <h2 className="text-xl font-bold">
-                Validator Election
-              </h2>
+          <div className="mb-5">
+            <h2 className="text-xl font-bold">
+              Organization Members
+            </h2>
 
-              <p className="text-gray-500">
-                Members elect validators democratically.
-              </p>
-            </div>
-
-            <button
-              onClick={() => setElectionOpen(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-            >
-              Open Session
-            </button>
+            <p className="text-gray-500">
+              Validators are appointed by the
+              leader after the offline meeting.
+            </p>
           </div>
 
-          {elections.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              No election session available.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {elections.map((election) => (
-                <Link
-                  key={election._id}
-                  href={`/organization/${org.slug}/election/${election._id}`}
-                >
-                  <div className="border rounded-xl p-4 hover:shadow transition">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <h3 className="font-semibold">
-                          {election.title}
-                        </h3>
-
-                        <p className="text-sm text-gray-500">
-                          {new Date(
-                            election.startDate
-                          ).toLocaleDateString()}{" "}
-                          -{" "}
-                          {new Date(
-                            election.endDate
-                          ).toLocaleDateString()}
-                        </p>
-                      </div>
-
-                      <span className="px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-600">
-                        {election.status}
-                      </span>
-                    </div>
+          <div className="space-y-3">
+            {members.map((member) => (
+              <div
+                key={member._id}
+                className="border rounded-xl p-4 flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-full bg-blue-100 flex items-center justify-center">
+                    <Users
+                      className="text-blue-600"
+                      size={20}
+                    />
                   </div>
-                </Link>
-              ))}
-            </div>
-          )}
+
+                  <div>
+                    <h3 className="font-semibold">
+                      {member.name}
+                    </h3>
+
+                    <p className="text-xs text-gray-500 font-mono">
+                      {member.walletAddress ||
+                        "Wallet not connected"}
+                    </p>
+                  </div>
+                </div>
+
+                {member.role === "Admin" ? (
+                  <span className="px-3 py-1 rounded-full bg-purple-100 text-purple-700 text-sm">
+                    Leader
+                  </span>
+                ) : member.role === "Validator" ? (
+                  <div className="flex gap-2">
+                    <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm">
+                      Validator
+                    </span>
+
+                    {myRole === "Admin" && (
+                      <button
+                        onClick={() => removeMember(member._id)}
+                        className="bg-red-100 text-red-600 px-3 py-1 rounded-lg text-sm hover:bg-red-200 transition"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    {myRole === "Admin" ? (
+                      <>
+                        <button
+                          onClick={() => setValidator(member._id)}
+                          className="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition"
+                        >
+                          Set Validator
+                        </button>
+
+                        <button
+                          onClick={() => removeMember(member._id)}
+                          className="bg-red-100 text-red-600 px-3 py-1 rounded-lg text-sm hover:bg-red-200 transition"
+                        >
+                          Remove
+                        </button>
+                      </>
+                    ) : (
+                      <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-sm">
+                        Member
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {members.length === 0 && (
+              <div className="py-8 text-center text-gray-500">
+                No members found.
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ================= GROUP HEADER ================= */}
@@ -314,13 +447,15 @@ export default function OrganizationPage() {
             </p>
           </div>
 
-          <button
-            onClick={() => setGroupOpen(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition"
-          >
-            <Plus size={18} />
-            Create Group
-          </button>
+          {myRole === "Admin" && (
+            <button
+              onClick={() => setGroupOpen(true)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition"
+            >
+              <Plus size={18} />
+              Create Group
+            </button>
+          )}
         </div>
 
         {/* ================= GROUP LIST ================= */}

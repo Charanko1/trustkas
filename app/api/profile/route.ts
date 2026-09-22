@@ -3,7 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import { verifyToken } from "@/lib/auth";
 import User from "@/models/User";
 
-async function getUserFromToken(req: NextRequest) {
+async function getUserId(req: NextRequest) {
   const token = req.headers
     .get("authorization")
     ?.replace("Bearer ", "");
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   try {
     await connectDB();
 
-    const userId = await getUserFromToken(req);
+    const userId = await getUserId(req);
 
     if (!userId) {
       return NextResponse.json(
@@ -39,7 +39,13 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    return NextResponse.json(user);
+    return NextResponse.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      walletAddress: user.walletAddress,
+    });
   } catch (error) {
     console.error(error);
 
@@ -57,7 +63,7 @@ export async function PATCH(req: NextRequest) {
   try {
     await connectDB();
 
-    const userId = await getUserFromToken(req);
+    const userId = await getUserId(req);
 
     if (!userId) {
       return NextResponse.json(
@@ -68,19 +74,24 @@ export async function PATCH(req: NextRequest) {
 
     const body = await req.json();
 
-    const updateData: any = {};
-
-    if (body.name) updateData.name = body.name;
-    if (body.walletAddress)
-      updateData.walletAddress = body.walletAddress;
-
     const user = await User.findByIdAndUpdate(
       userId,
-      updateData,
+      {
+        ...(body.name && { name: body.name }),
+        ...(body.walletAddress && {
+          walletAddress: body.walletAddress,
+        }),
+      },
       { new: true }
     ).select("-password");
 
-    return NextResponse.json(user);
+    return NextResponse.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      walletAddress: user.walletAddress,
+    });
   } catch (error) {
     console.error(error);
 
