@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { verifyToken } from "@/lib/auth";
+import { getIO } from "@/lib/socket";
 
 import Group from "@/models/Group";
 import GroupMember from "@/models/GroupMember";
@@ -14,35 +15,39 @@ export async function PATCH(
     await connectDB();
 
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
-    if (!token)
+    if (!token) {
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
+    }
 
     const { id } = verifyToken(token) as { id: string };
     const { requestId } = await params;
     const { action } = await req.json();
 
     const request = await GroupJoinRequest.findById(requestId);
-    if (!request)
+    if (!request) {
       return NextResponse.json(
         { message: "Request not found" },
         { status: 404 }
       );
+    }
 
     const group = await Group.findById(request.groupId);
-    if (!group)
+    if (!group) {
       return NextResponse.json(
         { message: "Group not found" },
         { status: 404 }
       );
+    }
 
-    if (String(group.leaderId) !== id)
+    if (String(group.leaderId) !== id) {
       return NextResponse.json(
         { message: "Only leader can approve requests" },
         { status: 403 }
       );
+    }
 
     // =======================
     // REJECT
@@ -51,6 +56,11 @@ export async function PATCH(
       await GroupJoinRequest.findByIdAndUpdate(requestId, {
         status: "Rejected",
       });
+
+      // Realtime ke admin
+      getIO()
+        .to(group.organizationId.toString())
+        .emit("request-updated");
 
       return NextResponse.json({
         message: "Request rejected",
@@ -85,6 +95,11 @@ export async function PATCH(
       { _id: group._id },
       { members: total }
     );
+
+    // Realtime ke semua admin organisasi
+    getIO()
+      .to(group.organizationId.toString())
+      .emit("request-updated");
 
     return NextResponse.json({
       message: "Member approved successfully",

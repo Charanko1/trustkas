@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { verifyToken } from "@/lib/auth";
+import { getIO } from "@/lib/socket";
 
 import Group from "@/models/Group";
 import Membership from "@/models/Membership";
@@ -65,7 +66,7 @@ export async function POST(
     const request = await GroupJoinRequest.findOne({
       groupId: id,
       membershipId: membership._id,
-    }).lean();
+    });
 
     if (request?.status === "Pending")
       return NextResponse.json(
@@ -80,16 +81,15 @@ export async function POST(
       );
 
     if (request?.status === "Rejected") {
-      const updated = await GroupJoinRequest.findByIdAndUpdate(
-        request._id,
-        { status: "Pending" },
-        { new: true }
-      );
+      request.status = "Pending";
+      await request.save();
+
+      getIO().to(group.organizationId.toString()).emit("join-request");
 
       return NextResponse.json(
         {
           message: "Join request sent successfully",
-          request: updated,
+          request,
         },
         { status: 200 }
       );
@@ -100,6 +100,8 @@ export async function POST(
       membershipId: membership._id,
       status: "Pending",
     });
+
+    getIO().to(group.organizationId.toString()).emit("join-request");
 
     return NextResponse.json(
       {

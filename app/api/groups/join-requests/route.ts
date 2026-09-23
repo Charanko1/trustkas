@@ -10,11 +10,12 @@ export async function GET(req: NextRequest) {
     await connectDB();
 
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
-    if (!token)
+    if (!token) {
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
+    }
 
     const { id } = verifyToken(token) as { id: string };
 
@@ -23,9 +24,13 @@ export async function GET(req: NextRequest) {
       "organizationId"
     ).lean();
 
-    const organizationIds = adminMemberships.map((m: any) => m.organizationId);
+    const organizationIds = adminMemberships.map(
+      (m: any) => m.organizationId
+    );
 
-    if (!organizationIds.length) return NextResponse.json([]);
+    if (!organizationIds.length) {
+      return NextResponse.json([]);
+    }
 
     const requests = await GroupJoinRequest.aggregate([
       { $match: { status: "Pending" } },
@@ -39,7 +44,11 @@ export async function GET(req: NextRequest) {
         },
       },
       { $unwind: "$group" },
-      { $match: { "group.organizationId": { $in: organizationIds } } },
+      {
+        $match: {
+          "group.organizationId": { $in: organizationIds },
+        },
+      },
 
       {
         $lookup: {
