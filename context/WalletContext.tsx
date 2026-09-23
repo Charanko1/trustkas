@@ -1,151 +1,52 @@
 "use client";
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { profileKey, useProfile } from "@/features/profile/hooks/useProfile";
+import { apiClient } from "@/lib/api-client";
+import type { Profile } from "@/types/profile";
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
-import { BrowserProvider } from "ethers";
-
-interface WalletContextType {
-  address: string;
-  connectWallet: () => Promise<void>;
-}
-
-const WalletContext = createContext<WalletContextType>({
-  address: "",
-  connectWallet: async () => {},
-});
-
+interface WalletContextType { address: string; connecting: boolean; error: string; connectWallet: () => Promise<void>; }
+const WalletContext = createContext<WalletContextType | null>(null);
 const BOT_CHAIN = {
-  chainId: "0x3C8",
-  chainName: "BOT Chain Testnet",
-  nativeCurrency: {
-    name: "BOT",
-    symbol: "BOT",
-    decimals: 18,
-  },
-  rpcUrls: ["https://rpc.bohr.life"],
-  blockExplorerUrls: ["https://scan.bohr.life"],
+  chainId: "0x3C8", chainName: "BOT Chain Testnet",
+  nativeCurrency: { name: "BOT", symbol: "BOT", decimals: 18 },
+  rpcUrls: ["https://rpc.bohr.life"], blockExplorerUrls: ["https://scan.bohr.life"],
 };
 
-declare global {
-  interface Window {
-    ethereum: any;
-  }
-}
-
-export function WalletProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const [address, setAddress] = useState("");
-
-  // Ambil wallet dari database saat aplikasi dibuka
-  useEffect(() => {
-    loadWallet();
-  }, []);
-
-  async function loadWallet() {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
+export function WalletProvider({ children }: { children: ReactNode }) {
+  const { profile } = useProfile();
+  const client = useQueryClient();
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState("");
+  const pending = useRef(false);
+  const connectWallet = useCallback(async () => {
+    if (pending.current) return;
+    if (!window.ethereum) { setError("Install MetaMask to connect your wallet."); return; }
+    pending.current = true; setConnecting(true); setError("");
     try {
-      const res = await fetch("/api/profile", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) return;
-
-      const user = await res.json();
-
-      if (user.walletAddress) {
-        setAddress(user.walletAddress);
+      const chain = await window.ethereum.request({ method: "eth_chainId" });
+      if (chain !== BOT_CHAIN.chainId) {
+        try { await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: BOT_CHAIN.chainId }] }); }
+        catch (err) {
+          if ((err as { code?: number }).code !== 4902) throw err;
+          await window.ethereum.request({ method: "wallet_addEthereumChain", params: [BOT_CHAIN] });
+        }
       }
+      // Account connection does not need the ethers library.
+      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" }) as string[];
+      if (!accounts[0]) throw new Error("No wallet account was selected.");
+      const saved = await apiClient<Profile>("/api/profile", { method: "PATCH", body: JSON.stringify({ walletAddress: accounts[0] }) });
+      client.setQueryData(profileKey, saved);
+      localStorage.setItem("user", JSON.stringify({ id: saved._id, name: saved.name, email: saved.email, role: saved.role, walletAddress: saved.walletAddress }));
     } catch (err) {
-      console.error(err);
-    }
-  }
-
-  async function switchToBOT() {
-    const chainId = await window.ethereum.request({
-      method: "eth_chainId",
-    });
-
-    if (chainId === BOT_CHAIN.chainId) return;
-
-    try {
-      await window.ethereum.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: BOT_CHAIN.chainId }],
-      });
-    } catch (error: any) {
-      if (error.code === 4902) {
-        await window.ethereum.request({
-          method: "wallet_addEthereumChain",
-          params: [BOT_CHAIN],
-        });
-      } else {
-        throw error;
-      }
-    }
-  }
-
-  async function connectWallet() {
-    if (!window.ethereum) {
-      alert("Please install MetaMask");
-      return;
-    }
-
-    try {
-      await switchToBOT();
-
-      const provider = new BrowserProvider(window.ethereum);
-
-      const accounts = await provider.send(
-        "eth_requestAccounts",
-        []
-      );
-
-      const walletAddress = accounts[0];
-
-      // Update Header langsung
-      setAddress(walletAddress);
-
-      // Simpan ke MongoDB
-      const token = localStorage.getItem("token");
-
-      const res = await fetch("/api/profile", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          walletAddress,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to save wallet");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Failed to connect wallet");
-    }
-  }
-
-  return (
-    <WalletContext.Provider
-      value={{ address, connectWallet }}
-    >
-      {children}
-    </WalletContext.Provider>
-  );
+      setError((err as { code?: number }).code === 4001 ? "Wallet connection was cancelled." : err instanceof Error ? err.message : "Could not connect your wallet. Please try again.");
+    } finally { pending.current = false; setConnecting(false); }
+  }, [client]);
+  const value = useMemo(() => ({ address: profile?.walletAddress || "", connecting, error, connectWallet }), [profile?.walletAddress, connecting, error, connectWallet]);
+  return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
 }
-
-export const useWallet = () => useContext(WalletContext);
+export function useWallet() {
+  const context = useContext(WalletContext);
+  if (!context) throw new Error("useWallet must be used inside DashboardProviders.");
+  return context;
+}

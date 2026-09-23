@@ -1,3 +1,4 @@
+
 export interface Member {
   _id: string;
   name: string;
@@ -25,4 +26,11 @@ export interface Proposal {
   fundedAmount: number;
   status: "Pending" | "Approved" | "Rejected";
   approvedBy: string;
+}
+
+export interface CreateProposalData {
+  title: string;
+  description: string;
+  target: number;
+  deadline: string;
 }

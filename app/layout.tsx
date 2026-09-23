@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
-import { WalletProvider } from "@/context/WalletContext";
+
 
 const geist = Geist({
   subsets: ["latin"],
+  variable: "--font-geist-sans",
 });
 
 export const metadata: Metadata = {
-  title: "TrustKas",
-  description: "Blockchain Organization Platform",
+  title: "Pledgr",
+  description: "A community bringing good ideas to life",
 };
 
 export default function RootLayout({
@@ -19,8 +20,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" data-scroll-behavior="smooth">
-      <body className={`${geist.className} bg-zinc-100 antialiased`}>
-        <WalletProvider>{children}</WalletProvider>
+      <body className={`${geist.className} ${geist.variable} antialiased`}>
+        {children}
       </body>
     </html>
   );
