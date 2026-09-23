@@ -1,11 +1,11 @@
-export default function AuthLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <main className="min-h-screen flex items-center justify-center bg-zinc-100">
-      {children}
-    </main>
-  );
+import type { Metadata } from "next";
+import type { ReactNode } from "react";
+
+export const metadata: Metadata = {
+  title: "Pledgr — Join the good",
+  description: "Back the ideas you believe in. Build something bigger, together.",
+};
+
+export default function AuthLayout({ children }: { children: ReactNode }) {
+  return <>{children}</>;
 }
