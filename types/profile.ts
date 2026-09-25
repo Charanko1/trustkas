@@ -4,4 +4,9 @@ export interface Profile {
   email: string;
   role: string;
   walletAddress: string;
+<<<<<<< HEAD
 }
+=======
+  walletVerifiedAt?: string | null;
+}
+>>>>>>> master

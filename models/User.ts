@@ -27,6 +27,25 @@ const UserSchema = new Schema(
     walletAddress: {
       type: String,
       default: "",
+<<<<<<< HEAD
+=======
+      trim: true,
+    },
+
+    walletNonce: {
+      type: String,
+      default: "",
+    },
+
+    walletNonceExpiresAt: {
+      type: Date,
+      default: null,
+    },
+
+    walletVerifiedAt: {
+      type: Date,
+      default: null,
+>>>>>>> master
     },
   },
   {
@@ -34,4 +53,14 @@ const UserSchema = new Schema(
   }
 );
 
+<<<<<<< HEAD
+=======
+// Wallets are globally unique, but legacy users may still have the empty string.
+// A partial index prevents two real users from claiming the same wallet in a race.
+UserSchema.index(
+  { walletAddress: 1 },
+  { unique: true, partialFilterExpression: { walletAddress: { $gt: "" } } }
+);
+
+>>>>>>> master
 export default models.User || model("User", UserSchema);

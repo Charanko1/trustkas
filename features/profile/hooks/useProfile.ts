@@ -7,6 +7,10 @@ export const profileKey = ["profile"] as const;
 export const profileQueryOptions = {
   queryKey: profileKey,
   queryFn: ({ signal }: { signal: AbortSignal }) => apiClient<Profile>("/api/profile", { signal }),
+<<<<<<< HEAD
+=======
+  staleTime: 30_000,
+>>>>>>> master
 };
 export function useProfile() {
   const query = useQuery(profileQueryOptions);

@@ -9,6 +9,10 @@ import SearchBar from "./components/SearchBar";
 import ActionCards from "./components/ActionCards";
 import OrganizationGrid from "./components/OrganizationGrid";
 import type { OrganizationSummary } from "@/types/organization";
+<<<<<<< HEAD
+=======
+import { APP_DATA_REFRESH_INTERVAL_MS } from "@/lib/realtime";
+>>>>>>> master
 
 const CreateOrgModal = dynamic(() => import("@/features/organization/components/CreateOrgModal"));
 const JoinOrgModal = dynamic(() => import("@/features/organization/components/JoinOrgModal"));
@@ -18,7 +22,11 @@ export default function DashboardScreen() {
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
+<<<<<<< HEAD
   const query = useQuery({ queryKey: ["organizations"], queryFn: ({ signal }) => apiClient<OrganizationSummary[]>("/api/organizations", { signal }) });
+=======
+  const query = useQuery({ queryKey: ["organizations"], refetchInterval: APP_DATA_REFRESH_INTERVAL_MS, refetchIntervalInBackground: false, refetchOnWindowFocus: true, refetchOnReconnect: true, queryFn: ({ signal }) => apiClient<OrganizationSummary[]>("/api/organizations", { signal }) });
+>>>>>>> master
   const organizations = query.data || [];
   const filtered = organizations.filter(org => org.name.toLowerCase().includes(search.toLowerCase()));
   const refresh = () => { void client.invalidateQueries({ queryKey: ["organizations"] }); };

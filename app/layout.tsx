@@ -9,7 +9,11 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
+<<<<<<< HEAD
   title: "Pledgr",
+=======
+  title: "PLEDGR",
+>>>>>>> master
   description: "A community bringing good ideas to life",
 };
 

@@ -2,6 +2,10 @@
 import Modal from "@/components/ui/Modal";
 
 import { useState } from "react";
+<<<<<<< HEAD
+=======
+import { apiClient, ApiError } from "@/lib/api-client";
+>>>>>>> master
 
 interface Props {
   open: boolean;
@@ -26,16 +30,20 @@ export default function CreateOrgModal({
     setLoading(true);
 
     try {
+<<<<<<< HEAD
       const token = localStorage.getItem("token");
       const user = JSON.parse(
         localStorage.getItem("user") || "{}"
       );
 
+=======
+>>>>>>> master
       const slug = name
         .toLowerCase()
         .trim()
         .replace(/\s+/g, "-");
 
+<<<<<<< HEAD
       const res = await fetch("/api/organizations", {
         method: "POST",
         headers: {
@@ -67,6 +75,27 @@ export default function CreateOrgModal({
     } catch (err: any) {
       console.error(err);
       alert(err.message || "Failed to create organization");
+=======
+      await apiClient("/api/organizations", {
+        method: "POST",
+        body: JSON.stringify({
+          name: name.trim(),
+          slug,
+          description: description.trim(),
+        }),
+      });
+
+      setName("");
+      setDescription("");
+      onSuccess();
+      onClose();
+    } catch (err) {
+      const message = err instanceof ApiError || err instanceof Error
+        ? err.message
+        : "Failed to create organization";
+      console.error(err);
+      alert(message);
+>>>>>>> master
     } finally {
       setLoading(false);
     }

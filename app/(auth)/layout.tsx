@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
+<<<<<<< HEAD
   title: "Pledgr — Join the good",
+=======
+  title: "PLEDGR — Join the good",
+>>>>>>> master
   description: "Back the ideas you believe in. Build something bigger, together.",
 };
 

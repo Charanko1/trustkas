@@ -56,7 +56,10 @@ export default function OrganizationScreen() {
         deleteOrganization={() => { void api(`/api/organizations/${org._id}`, { method: "DELETE" }).catch(() => {}); }} />
     </div>
     <MemberList members={members} myRole={myRole}
+<<<<<<< HEAD
       onSetValidator={id => { void api(`/api/memberships/${id}`, { method: "PATCH", body: JSON.stringify({ role: "Validator" }) }).catch(() => {}); }}
+=======
+>>>>>>> master
       onRemove={id => { void api(`/api/memberships/${id}`, { method: "DELETE" }).catch(() => {}); }} />
     <GroupList groups={groups} org={org} myRole={myRole} requests={requests} onOpenCreate={() => setGroupOpen(true)} onOpenRequests={() => setRequestOpen(true)}
       onJoin={id => { void api(`/api/groups/${id}/join`, { method: "POST" }).catch(() => {}); }} />

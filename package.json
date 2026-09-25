@@ -1,5 +1,9 @@
 {
+<<<<<<< HEAD
   "name": "trustkas",
+=======
+  "name": "pledgr",
+>>>>>>> master
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -11,13 +15,17 @@
   "dependencies": {
     "@tanstack/react-query": "^5.103.1",
     "bcryptjs": "^3.0.3",
+<<<<<<< HEAD
     "dotenv": "^18.0.1",
+=======
+>>>>>>> master
     "ethers": "^6.17.0",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.47.0",
     "mongoose": "^9.10.1",
     "next": "16.3.5",
     "react": "19.2.8",
+<<<<<<< HEAD
     "react-dom": "19.2.8",
     "recharts": "^3.10.1",
     "socket.io": "^4.8.3",
@@ -27,6 +35,11 @@
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+=======
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+>>>>>>> master
     "@tailwindcss/postcss": "^4",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
@@ -34,9 +47,13 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+<<<<<<< HEAD
     "hardhat": "^2.26.3",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
+=======
+    "tailwindcss": "^4",
+>>>>>>> master
     "typescript": "^5"
   }
 }

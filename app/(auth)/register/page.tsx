@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 "use client";
 
 import Link from "next/link";
@@ -119,3 +120,8 @@ export default function RegisterPage() {
     </div>
   );
 }
+=======
+import { RegisterPage } from "../components/TrustKasAuth";
+
+export default RegisterPage;
+>>>>>>> master

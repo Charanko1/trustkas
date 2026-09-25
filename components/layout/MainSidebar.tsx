@@ -16,7 +16,11 @@ export default function MainSidebar() {
   const { profile, error } = useProfile();
   const { address } = useWallet();
   return <aside className={styles.sidebar}>
+<<<<<<< HEAD
     <Link href="/dashboard" className={styles.brand} aria-label="Pledgr dashboard"><span className={styles.brandMark} aria-hidden="true">p<ArrowUpRight size={17} /></span>Pledgr<span>.</span></Link>
+=======
+    <Link href="/dashboard" className={styles.brand} aria-label="PLEDGR dashboard"><span className={styles.brandMark} aria-hidden="true">p<ArrowUpRight size={17} /></span>PLEDGR<span>.</span></Link>
+>>>>>>> master
     <p className={styles.sidebarCaption}>SMALL PLEDGES. BIG POSSIBILITIES.</p>
     <nav aria-label="Main navigation" className={styles.navigation}>{menus.map(({ title, href, icon: Icon, number }) => {
       const active = pathname === href || (href === "/dashboard" && pathname.startsWith("/organization/"));

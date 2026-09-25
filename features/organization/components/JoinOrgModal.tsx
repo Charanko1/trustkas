@@ -2,6 +2,10 @@
 import Modal from "@/components/ui/Modal";
 
 import { useState } from "react";
+<<<<<<< HEAD
+=======
+import { apiClient, ApiError } from "@/lib/api-client";
+>>>>>>> master
 
 interface Props {
   open: boolean;
@@ -25,6 +29,7 @@ export default function JoinOrgModal({
     setLoading(true);
 
     try {
+<<<<<<< HEAD
       const token = localStorage.getItem("token");
 
       const res = await fetch("/api/organizations/join", {
@@ -58,6 +63,22 @@ export default function JoinOrgModal({
       alert(
         err.message || "Failed to join organization"
       );
+=======
+      await apiClient("/api/organizations/join", {
+        method: "POST",
+        body: JSON.stringify({ code: code.toUpperCase().trim() }),
+      });
+
+      setCode("");
+      onSuccess();
+      onClose();
+    } catch (err) {
+      const message = err instanceof ApiError || err instanceof Error
+        ? err.message
+        : "Failed to join organization";
+      console.error(err);
+      alert(message);
+>>>>>>> master
     } finally {
       setLoading(false);
     }

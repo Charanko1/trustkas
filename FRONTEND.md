@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 # Pledgr frontend
+=======
+# PLEDGR frontend
+>>>>>>> master
 
 ## Where to work
 
@@ -7,7 +11,11 @@ app/
   (auth)/                 Login/register routes and their shared auth design
   (dashboard)/            Small route entry files, layout, loading and error boundaries
   api/                    Existing backend endpoints
+<<<<<<< HEAD
   globals.css             Shared Pledgr colors, typography and reusable CSS classes
+=======
+  globals.css             Shared PLEDGR colors, typography and reusable CSS classes
+>>>>>>> master
 features/
   dashboard/              Organization discovery screen and its components
   history/                Activity history screen
@@ -28,7 +36,11 @@ The public URLs have not changed. A route's `page.tsx` points to its feature scr
 
 ## Design
 
+<<<<<<< HEAD
 Cream surfaces, black borders, hard shadows, lime highlights and purple actions match the auth pages. The shared tokens live in `app/globals.css`; shell positioning lives in `components/layout/DashboardShell.module.css`. Reuse `pledgr-panel`, `pledgr-button`, `PageHeading`, `ContentState` and `Modal`. The native dialog traps focus and supports Escape. Wallet labels use BOT, matching the existing BOT Chain configuration; the contribution amount and contract call are unchanged.
+=======
+Cream surfaces, black borders, hard shadows, lime highlights and purple actions match the auth pages. The shared tokens live in `app/globals.css`; shell positioning lives in `components/layout/DashboardShell.module.css`. Reuse `shared panel`, `shared button`, `PageHeading`, `ContentState` and `Modal`. The native dialog traps focus and supports Escape. Wallet labels use BOT, matching the existing BOT Chain configuration; the contribution amount and contract call are unchanged.
+>>>>>>> master
 
 ## Loading and data
 
